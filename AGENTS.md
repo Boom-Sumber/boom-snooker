@@ -1,6 +1,6 @@
 # AGENTS.md — 项目入口
 
-> 任何新会话开始前，**先读这份文件**，再按下面的顺序读文档。
+> 任何新会话开始前，**先读这份文件**，再按下面的顺序读文档。  
 > 这里只写"怎么开始"和"什么不能做"，具体内容在 `docs/`。
 
 ---
@@ -23,8 +23,8 @@
 
 ## 项目一句话
 
-2D 斯诺克走位教学工具，**Electron + Vite + Vue3 + TypeScript + Element Plus**，仅 Windows PC。
-后端 **Supabase Free**（Postgres + Auth + Storage），本地用 JSON 缓存 + 全量快照同步。
+2D 斯诺克走位教学工具，**Electron + Vite + Vue3 + TypeScript + Element Plus**，仅 Windows PC。  
+后端 **Supabase Free**（Postgres + Auth + Storage），本地用 JSON 缓存 + 全量快照同步。  
 从旧 WPF 版（`E:\wpf\wpf\SnookerApp\Snooker_2D`）重写而来。
 
 ---
@@ -67,19 +67,21 @@ git log --oneline -15
 
 已接入 Supabase MCP，后端操作由 AI 直接执行，不需要手动点 Dashboard。
 
-| 场景 | 用什么 |
-|---|---|
+| 场景                        | 用什么                                                        |
+| ------------------------- | ---------------------------------------------------------- |
 | 建表 / 改列 / 加索引 / 改策略 / 加函数 | **先写 `supabase/migrations/NNN_*.sql`，再 `apply_migration`** |
-| 灌数据 / 查询 / 临时验证 | `execute_sql` |
-| 查表结构 | `list_tables` |
-| 查迁移历史 | `list_migrations` |
-| 安全自检（RLS 是否漏） | `get_advisors(type='security')` |
-| 生成 TS 类型 | `generate_typescript_types` |
-| 排查客户端 401/RLS 拒绝 | `query_logs` |
+| 灌数据 / 查询 / 临时验证           | `execute_sql`                                              |
+| 查表结构                      | `list_tables`                                              |
+| 查迁移历史                     | `list_migrations`                                          |
+| 安全自检（RLS 是否漏）             | `get_advisors(type='security')`                            |
+| 生成 TS 类型                  | `generate_typescript_types`                                |
+| 排查客户端 401/RLS 拒绝          | `query_logs`                                               |
 
 **没有 MCP 工具、只能手动做的**：关闭邮箱确认（Auth 配置）、保存数据库密码。
 
 > 项目：组织 `Boom-Projects`（`ztkscmrpkjwzjzttpmgl`），region `ap-southeast-1`。
+
+
 
 ---
 
@@ -121,22 +123,22 @@ T3.2 彩球列表页
 
 ## 代码结构
 
-| 路径 | 说明 |
-|---|---|
-| `src/main/` | Electron 主进程：窗口、主题、IPC、本地文件 |
-| `src/preload/` | 预加载脚本（contextBridge 暴露 API） |
-| `src/shared/` | 主/渲染共用：api、auth、sync、storage、media |
-| `src/renderer/` | Vue3 应用：views、components、stores、router、styles |
-| `scripts/` | 数据迁移、图片处理（阶段 0） |
-| `supabase/migrations/` | 数据库迁移文件（**唯一的 schema 真相来源**） |
-| `docs/` | 本文档目录 |
+| 路径                     | 说明                                            |
+| ---------------------- | --------------------------------------------- |
+| `src/main/`            | Electron 主进程：窗口、主题、IPC、本地文件                   |
+| `src/preload/`         | 预加载脚本（contextBridge 暴露 API）                   |
+| `src/shared/`          | 主/渲染共用：api、auth、sync、storage、media            |
+| `src/renderer/`        | Vue3 应用：views、components、stores、router、styles |
+| `scripts/`             | 数据迁移、图片处理（阶段 0）                               |
+| `supabase/migrations/` | 数据库迁移文件（**唯一的 schema 真相来源**）                  |
+| `docs/`                | 本文档目录                                         |
 
 ---
 
 ## 参考
 
-| 位置 | 内容 |
-|---|---|
-| `D:\78260\Documents\workbuddy默认空间\snooker\electron重构\` | 讨论记录：为什么这么定、当时比较了什么 |
-| `E:\wpf\wpf\SnookerApp\` | 旧 WPF 实现（**不要改**，只作对照参考） |
-| `E:\wpf\wpf\SnookerApp\备份数据\` | 旧数据原件（**不要删**） |
+| 位置                                                     | 内容                       |
+| ------------------------------------------------------ | ------------------------ |
+| `D:\78260\Documents\workbuddy默认空间\snooker\electron重构\` | 讨论记录：为什么这么定、当时比较了什么      |
+| `E:\wpf\wpf\SnookerApp\`                               | 旧 WPF 实现（**不要改**，只作对照参考） |
+| `E:\wpf\wpf\SnookerApp\备份数据\`                          | 旧数据原件（**不要删**）           |
