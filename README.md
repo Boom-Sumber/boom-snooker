@@ -1,0 +1,47 @@
+# Snooker
+
+2D 斯诺克走位教学工具（Windows 桌面端）。
+
+## 技术栈
+
+- **桌面**：Electron + electron-vite
+- **前端**：Vue 3 + TypeScript + Element Plus + Pinia + Vue Router
+- **后端**：Supabase（Postgres + Auth + Storage）
+- **本地缓存**：JSON 文件 + 内存查询
+
+## 快速开始
+
+```bash
+# 1. 配置镜像（首次）
+#    .npmrc 已包含国内镜像配置，直接 npm install 即可
+
+# 2. 安装依赖
+npm install
+
+# 3. 配置环境变量
+cp .env.example .env.local
+#    填入 Supabase 的 Project URL 与 anon key
+
+# 4. 开发模式
+npm run dev
+```
+
+## 文档
+
+| 文件 | 内容 |
+|---|---|
+| `AGENTS.md` | AI 助手入口：铁律、提交规范、会话流程 |
+| `docs/00-项目总纲.md` | 约束、技术选型、已定决策 |
+| `docs/01-开发计划.md` | 阶段与任务清单（含进度） |
+| `docs/02-进度日志.md` | 逐次会话的进度记录 |
+| `docs/03-数据模型与接口.md` | 表结构、RLS、RPC、调用约定 |
+| `docs/04-UI设计规范.md` | 色板、组件映射、功能核对表 |
+| `docs/05-环境准备.md` | 环境配置、脚手架注意事项 |
+
+## 说明
+
+本项目是旧 WPF 版本的重写：
+- 旧实现：`E:\wpf\wpf\SnookerApp\Snooker_2D`（仅作对照参考，不再维护）
+- 旧数据：`E:\wpf\wpf\SnookerApp\备份数据\`
+
+成本目标：**¥0 / 月**（Supabase 免费额度 + 内部小圈子使用）。
