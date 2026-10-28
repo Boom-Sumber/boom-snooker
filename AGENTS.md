@@ -59,6 +59,27 @@ git log --oneline -15
 8. **`.env.local` 不入库**，`.gitignore` 里必须有它。
 9. **不写死像素尺寸**（`width: 1100px` 这种）。窗口要能缩放。
 10. **本地存储用原子 rename 替换**，不要直接写目标文件——中断会损坏缓存。
+11. **所有 DDL 必须落成 migration 文件并提交 git**。MCP 只是执行通道，不是真相来源；`execute_sql` 只能查数据和临时验证，**禁止用来改结构**。每次 DDL 后跑 `get_advisors(type='security')`。
+
+---
+
+## Supabase MCP（后端操作方式）
+
+已接入 Supabase MCP，后端操作由 AI 直接执行，不需要手动点 Dashboard。
+
+| 场景 | 用什么 |
+|---|---|
+| 建表 / 改列 / 加索引 / 改策略 / 加函数 | **先写 `supabase/migrations/NNN_*.sql`，再 `apply_migration`** |
+| 灌数据 / 查询 / 临时验证 | `execute_sql` |
+| 查表结构 | `list_tables` |
+| 查迁移历史 | `list_migrations` |
+| 安全自检（RLS 是否漏） | `get_advisors(type='security')` |
+| 生成 TS 类型 | `generate_typescript_types` |
+| 排查客户端 401/RLS 拒绝 | `query_logs` |
+
+**没有 MCP 工具、只能手动做的**：关闭邮箱确认（Auth 配置）、保存数据库密码。
+
+> 项目：组织 `Boom-Projects`（`ztkscmrpkjwzjzttpmgl`），region `ap-southeast-1`。
 
 ---
 
@@ -107,6 +128,7 @@ T3.2 彩球列表页
 | `src/shared/` | 主/渲染共用：api、auth、sync、storage、media |
 | `src/renderer/` | Vue3 应用：views、components、stores、router、styles |
 | `scripts/` | 数据迁移、图片处理（阶段 0） |
+| `supabase/migrations/` | 数据库迁移文件（**唯一的 schema 真相来源**） |
 | `docs/` | 本文档目录 |
 
 ---
