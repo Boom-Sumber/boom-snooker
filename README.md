@@ -42,6 +42,7 @@ npm run dev
 
 本项目是旧 WPF 版本的重写：
 - 旧实现：`E:\wpf\wpf\SnookerApp\Snooker_2D`（仅作对照参考，不再维护）
-- 旧数据：`E:\wpf\wpf\SnookerApp\备份数据\`
+- **数据源**：`D:\app\SnookerHelper\data\`（`text/data.xlsx` 185 行 + `img/` 326 张图 + `text/home.txt` 首页文案，**唯一真相，只读**）
+- 旧 MySQL dump：`E:\wpf\wpf\SnookerApp\备份数据\`（2024-10 快照，**已过时**，仅留作历史对照）
 
 成本目标：**¥0 / 月**（Supabase 免费额度 + 内部小圈子使用）。

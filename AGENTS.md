@@ -25,7 +25,8 @@
 
 2D 斯诺克走位教学工具，**Electron + Vite + Vue3 + TypeScript + Element Plus**，仅 Windows PC。  
 后端 **Supabase Free**（Postgres + Auth + Storage），本地用 JSON 缓存 + 全量快照同步。  
-从旧 WPF 版（`E:\wpf\wpf\SnookerApp\Snooker_2D`）重写而来。
+从旧 WPF 版（`E:\wpf\wpf\SnookerApp\Snooker_2D`）重写而来。  
+**数据源**：`D:\app\SnookerHelper\data`（185 行 + 326 张图），**唯一真相，只读**。
 
 ---
 
@@ -139,4 +140,5 @@ T3.2 彩球列表页
 | ------------------------------------------------------ | ------------------------ |
 | `D:\78260\Documents\workbuddy默认空间\snooker\electron重构\` | 讨论记录：为什么这么定、当时比较了什么      |
 | `E:\wpf\wpf\SnookerApp\`                               | 旧 WPF 实现（**不要改**，只作对照参考） |
-| `E:\wpf\wpf\SnookerApp\备份数据\`                          | 旧数据原件（**不要删**）           |
+| `D:\app\SnookerHelper\data\`                           | **数据源（唯一真相）**：`text/data.xlsx`（ColorBalls 122 + AdvanceTable 63 = 185 行）、`img/`（326 张 PNG，77 MB）、`text/home.txt`（首页文案）。**不要改，只读** |
+| `E:\wpf\wpf\SnookerApp\备份数据\`                          | 旧 MySQL dump，**已过时**（124 行 / 253 张图，2024-10 快照），**不要再当数据源用**；仅作历史对照，不要删 |
