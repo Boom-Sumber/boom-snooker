@@ -81,8 +81,6 @@ git log --oneline -15
 
 > 项目：组织 `Boom-Projects`（`ztkscmrpkjwzjzttpmgl`），region `ap-southeast-1`。
 
-
-
 ---
 
 ## 任务与提交规范
