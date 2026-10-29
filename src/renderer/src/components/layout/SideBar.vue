@@ -167,36 +167,26 @@ function isActive(path: string): boolean {
   display: flex;
   flex: 0 0 auto;
   flex-direction: column;
-  gap: 1.5rem;
   width: var(--sidebar-width);
-  padding: 1.25rem 0.875rem 1.5rem;
-  overflow-x: hidden;
-  overflow-y: auto;
+  padding: 0;
+  /* 卡片本身不滚动：只有下面的菜单区滚，LOGO 区固定 */
+  overflow: hidden;
   color: var(--sidebar-text);
   background: var(--sidebar-bg);
   transition: width var(--transition-fast);
 }
 
 .sidebar--collapsed {
-  align-items: center;
   width: var(--sidebar-width-collapsed);
-  padding-inline: 0.5rem;
-}
-
-/* 滚动条在侧栏里要细、要淡 */
-.sidebar::-webkit-scrollbar {
-  width: 6px;
-}
-
-.sidebar::-webkit-scrollbar-thumb {
-  background: var(--border);
 }
 
 .sidebar__logo {
   display: flex;
-  gap: 0.625rem;
+  flex: 0 0 auto;
+  gap: 0.75rem;
   align-items: center;
-  padding-inline: 0.375rem;
+  justify-content: center;
+  padding: 2rem 0.875rem 1.5rem;
 }
 
 .sidebar--collapsed .sidebar__logo {
@@ -223,15 +213,42 @@ function isActive(path: string): boolean {
 .sidebar__name {
   color: var(--text-1);
   font-size: clamp(1.125rem, 1.3vw, 1.375rem);
-  font-weight: 500;
+  /* 只有 Regular 一个字重，这里是要「看起来更粗」，接受合成加粗 */
+  font-weight: 600;
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
+/* 菜单区：唯一的滚动容器，底部留出与卡片下边的间距 */
 .sidebar__nav {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 0.375rem;
+  min-height: 0;
+  padding: 0 1rem 1.25rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.sidebar--collapsed .sidebar__nav {
+  align-items: center;
+  padding-inline: 0.5rem;
+}
+
+/* 滚动条：只覆盖菜单区，尽量收窄 */
+.sidebar__nav::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar__nav::-webkit-scrollbar-thumb {
+  /* 4px 已经很细，颜色用 text-3 才看得出来 */
+  background: var(--text-3);
+  border-radius: 2px;
+}
+
+.sidebar__nav::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .group {
