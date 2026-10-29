@@ -5,7 +5,8 @@ import eslintPluginVue from 'eslint-plugin-vue'
 import vueParser from 'vue-eslint-parser'
 
 export default defineConfig(
-  { ignores: ['**/node_modules', '**/dist', '**/out'] },
+  // .workbuddy-ai 是 AI 助手的本地临时脚本目录（已在 .gitignore），不参与检查
+  { ignores: ['**/node_modules', '**/dist', '**/out', '**/.workbuddy-ai'] },
   tseslint.configs.recommended,
   eslintPluginVue.configs['flat/recommended'],
   {

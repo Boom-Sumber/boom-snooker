@@ -204,12 +204,12 @@ function isActive(path: string): boolean {
 .group__header {
   position: relative;
   display: flex;
-  gap: 0.625rem;
+  gap: 0.875rem;
   align-items: center;
   padding: 0.5rem 0.625rem;
   font-family: inherit;
-  font-size: 0.9375rem;
-  font-weight: 500;
+  font-size: 1.0625rem;
+  font-weight: 600;
   color: var(--sidebar-text);
   text-align: left;
   background: transparent;
@@ -241,8 +241,8 @@ function isActive(path: string): boolean {
   display: grid;
   flex: 0 0 auto;
   place-items: center;
-  width: 1.125rem;
-  height: 1.125rem;
+  width: 1.25rem;
+  height: 1.25rem;
   color: var(--text-3);
 }
 
@@ -264,7 +264,7 @@ function isActive(path: string): boolean {
   width: 2.25rem;
   height: 2.25rem;
   font-family: inherit;
-  font-size: 0.9375rem;
+  font-size: 1.0625rem;
   color: var(--sidebar-text);
   background: transparent;
   border: 0;
@@ -289,8 +289,9 @@ function isActive(path: string): boolean {
 
 .item {
   display: block;
-  padding: 0.4375rem 0.75rem 0.4375rem 2.375rem;
-  font-size: 0.875rem;
+  padding: 0.5rem 0.75rem 0.5rem 2.75rem;
+  font-size: 1rem;
+  font-weight: 500;
   color: var(--text-2);
   text-decoration: none;
   border-radius: var(--radius-sm);
