@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Bell, User } from '@element-plus/icons-vue'
-import type { ThemeMode } from '@shared/types/theme'
-import { setThemeMode, themeMode } from '@renderer/theme'
+import { Bell } from '@element-plus/icons-vue'
+import AppIcon from '@renderer/components/AppIcon.vue'
+import { iconSize, type IconName } from '@renderer/icons'
+import avatarBoy from '@renderer/assets/avatars/avatar-boy.png'
+import { setThemeMode, themeIsDark } from '@renderer/theme'
 import WindowControls from './WindowControls.vue'
 
 defineProps<{ collapsed: boolean }>()
@@ -30,18 +32,15 @@ const clock = computed(() => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 })
 
-const themeOptions: { label: string; value: ThemeMode }[] = [
-  { label: '跟随系统', value: 'system' },
-  { label: '亮色', value: 'light' },
-  { label: '暗色', value: 'dark' }
-]
+/**
+ * 主题切换：只做「亮 ↔ 暗」两态。
+ * 「跟随系统」留到设置页再加（用户要求），这里不暴露第三档。
+ */
+const themeIcon = computed<IconName>(() => (themeIsDark.value ? 'moon' : 'sun'))
 
-const themeValue = computed<ThemeMode>({
-  get: () => themeMode.value,
-  set: (value) => {
-    void setThemeMode(value)
-  }
-})
+function toggleTheme(): void {
+  void setThemeMode(themeIsDark.value ? 'light' : 'dark')
+}
 
 /** 待审数量：T4.3 接审核接口，0 时不显示红点 */
 const pendingCount = ref(0)
@@ -66,7 +65,7 @@ function onRefresh(): void {
         </svg>
       </button>
 
-      <el-avatar :size="40" :icon="User" class="no-drag" />
+      <el-avatar :size="40" :src="avatarBoy" class="no-drag" />
 
       <div class="who">
         <span class="who__name">未登录</span>
@@ -77,14 +76,15 @@ function onRefresh(): void {
     <div class="topbar__right no-drag">
       <el-button @click="onRefresh">数据更新</el-button>
 
-      <el-select v-model="themeValue" class="theme-select" aria-label="选择主题">
-        <el-option
-          v-for="option in themeOptions"
-          :key="option.value"
-          :label="option.label"
-          :value="option.value"
-        />
-      </el-select>
+      <button
+        class="icon-btn"
+        type="button"
+        :title="themeIsDark ? '切换到亮色' : '切换到暗色'"
+        :aria-label="themeIsDark ? '切换到亮色' : '切换到暗色'"
+        @click="toggleTheme"
+      >
+        <AppIcon :name="themeIcon" :size="iconSize(themeIcon, '1.125rem')" />
+      </button>
 
       <span class="bell" :title="pendingCount > 0 ? `待审 ${pendingCount} 条` : '暂无待审'">
         <el-badge :is-dot="pendingCount > 0" :offset="[-2, 2]">
@@ -172,10 +172,6 @@ function onRefresh(): void {
   font-variant-numeric: tabular-nums;
   color: var(--text-3);
   white-space: nowrap;
-}
-
-.theme-select {
-  width: 8rem;
 }
 
 .bell {

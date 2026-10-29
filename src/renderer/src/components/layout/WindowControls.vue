@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
+import AppIcon from '@renderer/components/AppIcon.vue'
 
 const { minimize, toggleMaximize, close, isMaximized: queryMaximized } = window.api.windowControls
 
@@ -22,9 +23,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="window-controls">
     <button class="ctl" type="button" aria-label="最小化" title="最小化" @click="minimize">
-      <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-        <path d="M1 5h8" stroke="currentColor" stroke-width="1.2" />
-      </svg>
+      <AppIcon name="minimize" size="0.75rem" />
     </button>
 
     <button
@@ -35,35 +34,11 @@ onBeforeUnmount(() => {
       :data-maximized="isMaximized"
       @click="toggleMaximize"
     >
-      <svg v-if="!isMaximized" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-        <rect
-          x="1.2"
-          y="1.2"
-          width="7.6"
-          height="7.6"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.2"
-        />
-      </svg>
-      <svg v-else width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-        <rect
-          x="1.2"
-          y="3"
-          width="5.8"
-          height="5.8"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.2"
-        />
-        <path d="M3 3V1.2h5.8V7H7" fill="none" stroke="currentColor" stroke-width="1.2" />
-      </svg>
+      <AppIcon :name="isMaximized ? 'restore' : 'maximize'" size="0.75rem" />
     </button>
 
     <button class="ctl ctl--close" type="button" aria-label="关闭" title="关闭" @click="close">
-      <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-        <path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.2" />
-      </svg>
+      <AppIcon name="close" size="0.75rem" />
     </button>
   </div>
 </template>
@@ -101,9 +76,5 @@ onBeforeUnmount(() => {
 .ctl--close:hover {
   color: #fff;
   background: var(--danger);
-}
-
-svg {
-  display: block;
 }
 </style>
