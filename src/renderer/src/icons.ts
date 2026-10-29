@@ -10,6 +10,7 @@ export const GLYPHS = {
   balls: 'taiqiuganh',
   advanced: 'jinjie-copy',
   more: 'qita',
+  bell: 'lingdang',
   sun: 'sun',
   moon: 'moon',
   minimize: 'zuixiaohua',

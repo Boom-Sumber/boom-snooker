@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Bell } from '@element-plus/icons-vue'
 import AppIcon from '@renderer/components/AppIcon.vue'
 import { iconSize, type IconName } from '@renderer/icons'
 import avatarBoy from '@renderer/assets/avatars/avatar-boy.png'
@@ -79,7 +78,7 @@ function onRefresh(): void {
       <!-- 铃铛与主题按钮共用 .icon-btn：同样的 2rem 方形盒，垂直对齐才一致 -->
       <span class="icon-btn" :title="pendingCount > 0 ? `待审 ${pendingCount} 条` : '暂无待审'">
         <el-badge :is-dot="pendingCount > 0" :offset="[-2, 2]">
-          <el-icon :size="18"><Bell /></el-icon>
+          <AppIcon name="bell" size="1.125rem" />
         </el-badge>
       </span>
 
@@ -173,6 +172,15 @@ function onRefresh(): void {
   font-variant-numeric: tabular-nums;
   color: var(--text-3);
   white-space: nowrap;
+}
+
+/* el-badge 是 inline-block，里面的图标会按基线对齐、比按钮中心高 1~2px；
+   改成 flex 居中，铃铛才和旁边的主题图标严格同高 */
+.icon-btn :deep(.el-badge) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 .divider {
