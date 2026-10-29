@@ -143,19 +143,25 @@ function isActive(path: string): boolean {
             <span class="group__label">{{ group.label }}</span>
           </button>
 
-          <ul v-show="isOpen(group.key)" class="group__items">
-            <li v-for="item in group.items" :key="item.path">
-              <RouterLink
-                :to="item.path"
-                class="item"
-                :class="{ 'is-active': isActive(item.path) }"
-              >
-                <span class="item__label" :style="{ width: labelWidth(group.key) }">
-                  {{ item.label }}
-                </span>
-              </RouterLink>
-            </li>
-          </ul>
+          <!--
+            用 grid-template-rows 0fr → 1fr 做高度动画（不用 v-show，否则没有过渡）；
+            缓动带一点过冲，收放时有弹簧感
+          -->
+          <div class="group__panel" :class="{ 'is-open': isOpen(group.key) }">
+            <ul class="group__items">
+              <li v-for="item in group.items" :key="item.path">
+                <RouterLink
+                  :to="item.path"
+                  class="item"
+                  :class="{ 'is-active': isActive(item.path) }"
+                >
+                  <span class="item__label" :style="{ width: labelWidth(group.key) }">
+                    {{ item.label }}
+                  </span>
+                </RouterLink>
+              </li>
+            </ul>
+          </div>
         </template>
       </div>
     </nav>
@@ -281,9 +287,8 @@ function isActive(path: string): boolean {
   background: var(--sidebar-hover);
 }
 
-/* 当前分组：左侧一条主题色竖线，图标与文本颜色不变 */
-.group__header.is-active::before,
-.group__badge.is-active::before {
+/* 展开态：当前分组左侧一条主题色竖线，图标与文本颜色不变 */
+.group__header.is-active::before {
   position: absolute;
   top: 50%;
   /* 别贴着卡片左边，留出一点呼吸感 */
@@ -338,14 +343,32 @@ function isActive(path: string): boolean {
   background: var(--sidebar-hover);
 }
 
+/* 折叠态没有竖线的空间，直接用主题色图标表示当前分组 */
+.group__badge.is-active {
+  color: var(--sidebar-active-text);
+}
+
 /* ---------- 二级菜单 ---------- */
+
+/* 高度动画容器：0fr → 1fr 可以过渡，v-show 不行 */
+.group__panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.group__panel.is-open {
+  grid-template-rows: 1fr;
+}
 
 .group__items {
   display: flex;
   flex-direction: column;
   gap: 0.125rem;
+  min-height: 0;
   margin: 0;
   padding: 0;
+  overflow: hidden;
   list-style: none;
 }
 
@@ -358,9 +381,23 @@ function isActive(path: string): boolean {
   text-align: center;
   text-decoration: none;
   border-radius: var(--radius-sm);
+  /*
+   * 条目自身的「弹簧」：收起时上移 + 淡出，展开时落回原位。
+   * 缓动过冲 20%，所以会轻微弹一下再稳住 —— 高度动画（grid 0fr→1fr）在 1fr 处会被
+   * 截断、吃不到过冲，所以回弹放在条目上才看得见
+   */
+  opacity: 0;
+  transform: translateY(-0.875rem);
   transition:
+    transform 340ms cubic-bezier(0.34, 1.8, 0.5, 1),
+    opacity 200ms ease,
     background-color var(--transition-fast),
     color var(--transition-fast);
+}
+
+.group__panel.is-open .item {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 /*
