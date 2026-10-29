@@ -12,14 +12,39 @@ body,
 }
 
 body {
-  font-family:
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    'Microsoft YaHei',
-    sans-serif;
-  font-size: 14px;
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-base);
   line-height: 1.5;
-  color-scheme: light dark;
+  background-color: var(--bg);
+  color: var(--text-1);
   -webkit-font-smoothing: antialiased;
+  /* 切主题时颜色过渡一下，不要硬跳 */
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+/* 长文本（走位说明可能几百字）：不溢出卡片 */
+.long-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* 原生滚动条跟随主题 */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-3);
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
 }

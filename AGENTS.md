@@ -126,7 +126,7 @@ T3.2 彩球列表页
 | ---------------------- | --------------------------------------------- |
 | `src/main/`            | Electron 主进程：窗口、主题、IPC、本地文件                   |
 | `src/preload/`         | 预加载脚本（contextBridge 暴露 API）                   |
-| `src/shared/`          | 主/渲染共用：api、auth、sync、storage、media（T2 建）      |
+| `src/shared/`          | 主/渲染共用：`types/`（已建）、api、auth、sync、storage、media（T2 建），别名 `@shared` |
 | `src/renderer/`        | Vue3 应用外壳：`index.html`（含 CSP）                |
 | `src/renderer/src/`    | **Vue 源码实际在这层**（electron-vite 默认结构，别名 `@renderer`）：views、components、stores、router、styles、assets |
 | `build/`               | electron-builder 的 `buildResources`（图标），**必须入库**，`.gitignore` 里不能忽略 |

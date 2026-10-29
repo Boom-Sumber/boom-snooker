@@ -1,6 +1,7 @@
 import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { initTheme } from './theme'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -34,6 +35,9 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.boom.snooker')
+
+  // 主题必须在建窗口之前定下来，否则首帧会闪一下
+  initTheme()
 
   // 开发期 F12 开关 DevTools，生产期忽略 Ctrl+R
   app.on('browser-window-created', (_, window) => {

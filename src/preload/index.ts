@@ -1,8 +1,14 @@
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
+import type { ThemeApi, ThemeMode, ThemeState } from '@shared/types/theme'
 
-// Custom APIs for renderer
-const api = {}
+// 自定义 API：渲染进程只能通过这里访问主进程能力，不直接碰 Node
+const api: { theme: ThemeApi } = {
+  theme: {
+    get: (): Promise<ThemeState> => ipcRenderer.invoke('theme:get'),
+    set: (mode: ThemeMode): Promise<ThemeState> => ipcRenderer.invoke('theme:set', mode)
+  }
+}
 
 // Use `contextBridge` APIs to expose Electron APIs to
 // renderer only if context isolation is enabled, otherwise
