@@ -1,0 +1,85 @@
+name: backup
+
+# Supabase 免费版**没有任何自动备份**，这是唯一会让项目彻底报废的风险。
+# 每天 pg_dump 一次，存成 Actions artifact（默认保留 30 天）。
+#
+# ⚠️ 只备份数据库（表 + auth.users），**不含 Storage 里的图片**。
+#    图片丢失时用 D:\app\SnookerHelper\data 的原图 + scripts/upload_images.py 重建。
+#
+# 需要配置（Settings → Secrets and variables → Actions → Secrets）：
+#   SUPABASE_DB_URL   Dashboard → Connect → Session pooler 里的连接串，形如
+#                     postgresql://postgres.<ref>:<密码>@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres
+#
+# 为什么用 Session pooler 而不是 db.<ref>.supabase.co：
+#   直连域名只有 IPv6，GitHub Actions 的 runner 不支持 IPv6，会连不上。
+
+on:
+  schedule:
+    - cron: '30 1 * * *'    # UTC 01:30 = 北京时间 09:30，错开 keepalive
+  workflow_dispatch:
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 检查 secret 是否配置
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "::error::缺少 SUPABASE_DB_URL，请到 Settings → Secrets and variables → Actions 添加"
+            exit 1
+          fi
+
+      # 服务器是 Postgres 17，runner 自带的 pg_dump 版本更老会报
+      # "server version mismatch"，所以装 17 的客户端
+      - name: 安装 PostgreSQL 17 客户端
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+          https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          pg_dump --version
+
+      - name: Dump 数据库
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          STAMP=$(date -u +%Y%m%d-%H%M)
+          echo "STAMP=$STAMP" >> "$GITHUB_ENV"
+          mkdir -p backup
+          # 纯 SQL 便于人工查看与 psql 恢复；--no-owner/--no-privileges 便于恢复到任意实例
+          pg_dump "$DB_URL" --no-owner --no-privileges --format=plain \
+            --file="backup/snooker-$STAMP.sql"
+          gzip -9 "backup/snooker-$STAMP.sql"
+          ls -lh backup/
+
+      - name: 基本校验（文件非空、含关键表）
+        run: |
+          f="backup/snooker-$STAMP.sql.gz"
+          size=$(stat -c%s "$f")
+          echo "备份体积：$size 字节"
+          if [ "$size" -lt 10000 ]; then
+            echo "::error::备份文件过小（$size 字节），疑似 dump 失败"
+            exit 1
+          fi
+          for t in balls advanced comments profiles display_dict; do
+            if ! zcat "$f" | grep -q "CREATE TABLE public.$t"; then
+              echo "::error::备份里找不到表 $t"
+              exit 1
+            fi
+          done
+          echo "✅ 备份包含全部关键表"
+
+      - name: 上传 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ env.STAMP }}
+          path: backup/*.sql.gz
+          retention-days: 30
+          if-no-files-found: error
