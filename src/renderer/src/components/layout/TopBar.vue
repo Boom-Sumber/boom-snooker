@@ -49,14 +49,10 @@ const pendingCount = ref(0)
 function onRefresh(): void {
   ElMessage.info('数据同步在 T2.4 接入')
 }
-
-function onLogin(): void {
-  ElMessage.info('登录在 T3.5 接入')
-}
 </script>
 
 <template>
-  <header class="topbar">
+  <header class="topbar card">
     <div class="topbar__left">
       <button
         class="icon-btn no-drag"
@@ -80,7 +76,6 @@ function onLogin(): void {
 
     <div class="topbar__right no-drag">
       <el-button @click="onRefresh">数据更新</el-button>
-      <el-button type="primary" @click="onLogin">Login</el-button>
 
       <el-select v-model="themeValue" class="theme-select" aria-label="选择主题">
         <el-option
@@ -113,9 +108,6 @@ function onLogin(): void {
   justify-content: space-between;
   min-height: 4rem;
   padding: 0.5rem 0.75rem 0.5rem 1rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
   /* 整条顶栏可拖动窗口 */
   -webkit-app-region: drag;
 }

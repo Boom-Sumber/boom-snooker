@@ -36,18 +36,19 @@
   /* 阴影（暗色下加深，见 html.dark） */
   --shadow-1: 0 1px 2px rgb(0 0 0 / 6%), 0 2px 8px rgb(0 0 0 / 4%);
   --shadow-2: 0 4px 16px rgb(0 0 0 / 10%);
+  /* 卡片用：很淡的一层，够撑出立体感又不脏 */
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 4%), 0 4px 12px rgb(0 0 0 / 4%);
 
   /* 图片底衬：路线图/击球点图是白底 PNG，两套主题下都保持白底 */
   --image-frame-bg: #ffffff;
 
-  /* 侧栏（旧版布局：橘底白字；暗色下改成深底，避免大面积高饱和橘红发颤） */
-  --sidebar-bg: #f06632;
-  --sidebar-text: #ffffff;
-  --sidebar-hover: rgb(255 255 255 / 14%);
-  --sidebar-active-bg: #ffffff;
-  --sidebar-active-text: #555555;
-  /* 当前分组标题：橘底上只能靠加粗，不能用深色字（对比度不够） */
-  --sidebar-group-active-text: #ffffff;
+  /* 侧栏（悬浮白卡片，与顶部栏/内容区统一；激活态靠左侧主题色竖线） */
+  --sidebar-bg: #ffffff;
+  --sidebar-text: #212121;
+  --sidebar-hover: rgb(0 0 0 / 4%);
+  --sidebar-active-bg: color-mix(in srgb, #f06632 10%, #ffffff);
+  --sidebar-active-text: #f06632;
+  --sidebar-indicator: #f06632;
   --sidebar-width: 15rem;
   --sidebar-width-collapsed: 4.25rem;
 }
@@ -76,14 +77,15 @@ html.dark {
 
   --shadow-1: 0 1px 2px rgb(0 0 0 / 40%), 0 2px 8px rgb(0 0 0 / 28%);
   --shadow-2: 0 4px 16px rgb(0 0 0 / 45%);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 30%), 0 6px 16px rgb(0 0 0 / 28%);
 
-  /* 侧栏：深底 + 橘色高亮（docs/04 §2.3：高饱和橘红大面积铺深底会发颤） */
-  --sidebar-bg: #1a1a1d;
+  /* 侧栏：与卡片同色，激活态靠左侧主题色竖线 */
+  --sidebar-bg: #1c1c1f;
   --sidebar-text: #ededef;
-  --sidebar-hover: rgb(255 255 255 / 8%);
-  --sidebar-active-bg: #2e2e33;
+  --sidebar-hover: rgb(255 255 255 / 6%);
+  --sidebar-active-bg: color-mix(in srgb, #ff7a45 18%, #1c1c1f);
   --sidebar-active-text: #ff7a45;
-  --sidebar-group-active-text: #ff7a45;
+  --sidebar-indicator: #ff7a45;
 }
 
 /* ============================================================
@@ -153,4 +155,15 @@ html.dark {
   display: block;
   max-width: 100%;
   height: auto;
+}
+
+/*
+ * 悬浮卡片：侧栏 / 顶部栏 / 内容区 / 以后的列表卡片统一用这个，
+ * 阴影很淡，靠「灰底 + 白卡」撑立体感，不要加大阴影
+ */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
 }

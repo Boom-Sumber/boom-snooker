@@ -14,7 +14,7 @@ const collapsed = ref(false)
     <div class="main-layout__main">
       <TopBar :collapsed="collapsed" @toggle-sidebar="collapsed = !collapsed" />
 
-      <main class="main-layout__content">
+      <main class="main-layout__content card">
         <RouterView v-slot="{ Component }">
           <Transition name="page" mode="out-in">
             <component :is="Component" />
@@ -28,7 +28,9 @@ const collapsed = ref(false)
 <style scoped>
 .main-layout {
   display: flex;
+  gap: 0.75rem;
   height: 100%;
+  padding: 0.75rem;
   background: var(--bg);
 }
 
@@ -38,16 +40,12 @@ const collapsed = ref(false)
   flex-direction: column;
   gap: 0.75rem;
   min-width: 0;
-  padding: 0.75rem;
 }
 
 .main-layout__content {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
 }
 
 .page-enter-active,
