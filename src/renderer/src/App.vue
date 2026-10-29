@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { ThemeMode } from '@shared/types/theme'
+import TitleBar from './components/TitleBar.vue'
 import { setThemeMode, themeIsDark, themeMode } from './theme'
 
 const modes: { value: ThemeMode; label: string }[] = [
@@ -22,55 +23,67 @@ const effectiveLabel = computed(() => (themeIsDark.value ? 'dark' : 'light'))
 </script>
 
 <template>
-  <main class="stage">
-    <section class="panel">
-      <h1>主题系统自检（T1.2）</h1>
-      <p class="meta">
-        选择：<strong>{{ themeMode }}</strong> · 实际生效：<strong>{{ effectiveLabel }}</strong>
-      </p>
+  <div class="app-shell">
+    <TitleBar />
 
-      <div class="modes">
-        <button
-          v-for="item in modes"
-          :key="item.value"
-          :data-mode="item.value"
-          :class="{ active: themeMode === item.value }"
-          type="button"
-          @click="setThemeMode(item.value)"
-        >
-          {{ item.label }}
-        </button>
-      </div>
-
-      <div class="swatches">
-        <div v-for="item in swatches" :key="item.token" class="swatch">
-          <span class="chip" :style="{ background: `var(${item.token})` }" />
-          <span class="chip-label">{{ item.label }}</span>
-        </div>
-      </div>
-
-      <div class="sample">
-        <div class="surface">surface（卡片底）</div>
-        <div class="surface-2">surface-2（次级区块）</div>
-        <p class="text-2">text-2：次级文本（作者、时间）</p>
-        <p class="text-3">text-3：提示文本</p>
-        <p class="long-text">
-          长文本示例：半台一库翻袋，力度满力，注意低杆补偿，白球吃库后走位到中袋附近，出杆要稳，不要发力过猛。
+    <main class="stage">
+      <section class="panel">
+        <h1>主题系统自检（T1.2）</h1>
+        <p class="meta">
+          选择：<strong>{{ themeMode }}</strong> · 实际生效：<strong>{{ effectiveLabel }}</strong>
         </p>
-      </div>
 
-      <p class="hint">T1.4 做布局时这块会被替换掉</p>
-    </section>
-  </main>
+        <div class="modes">
+          <button
+            v-for="item in modes"
+            :key="item.value"
+            :data-mode="item.value"
+            :class="{ active: themeMode === item.value }"
+            type="button"
+            @click="setThemeMode(item.value)"
+          >
+            {{ item.label }}
+          </button>
+        </div>
+
+        <div class="swatches">
+          <div v-for="item in swatches" :key="item.token" class="swatch">
+            <span class="chip" :style="{ background: `var(${item.token})` }" />
+            <span class="chip-label">{{ item.label }}</span>
+          </div>
+        </div>
+
+        <div class="sample">
+          <div class="surface">surface（卡片底）</div>
+          <div class="surface-2">surface-2（次级区块）</div>
+          <p class="text-2">text-2：次级文本（作者、时间）</p>
+          <p class="text-3">text-3：提示文本</p>
+          <p class="long-text">
+            长文本示例：半台一库翻袋，力度满力，注意低杆补偿，白球吃库后走位到中袋附近，出杆要稳，不要发力过猛。
+          </p>
+        </div>
+
+        <p class="hint">T1.4 做布局时这块会被替换掉</p>
+      </section>
+    </main>
+  </div>
 </template>
 
 <style scoped>
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
 .stage {
   display: flex;
+  flex: 1;
   align-items: center;
   justify-content: center;
-  min-height: 100%;
+  min-height: 0;
   padding: clamp(16px, 3vw, 40px);
+  overflow: auto;
 }
 
 .panel {
