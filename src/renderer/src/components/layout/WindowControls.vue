@@ -23,7 +23,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="window-controls">
     <button class="ctl" type="button" aria-label="最小化" title="最小化" @click="minimize">
-      <AppIcon name="minimize" size="0.75rem" />
+      <AppIcon name="minimize" size="0.875rem" />
     </button>
 
     <button
@@ -34,11 +34,11 @@ onBeforeUnmount(() => {
       :data-maximized="isMaximized"
       @click="toggleMaximize"
     >
-      <AppIcon :name="isMaximized ? 'restore' : 'maximize'" size="0.75rem" />
+      <AppIcon :name="isMaximized ? 'restore' : 'maximize'" size="0.875rem" />
     </button>
 
     <button class="ctl ctl--close" type="button" aria-label="关闭" title="关闭" @click="close">
-      <AppIcon name="close" size="0.75rem" />
+      <AppIcon name="close" size="0.875rem" />
     </button>
   </div>
 </template>
@@ -55,8 +55,8 @@ onBeforeUnmount(() => {
 .ctl {
   display: grid;
   place-items: center;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2.5rem;
+  height: 2.5rem;
   padding: 0;
   color: var(--text-2);
   background: transparent;

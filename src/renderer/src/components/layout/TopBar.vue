@@ -76,6 +76,13 @@ function onRefresh(): void {
     <div class="topbar__right no-drag">
       <el-button @click="onRefresh">数据更新</el-button>
 
+      <!-- 铃铛与主题按钮共用 .icon-btn：同样的 2rem 方形盒，垂直对齐才一致 -->
+      <span class="icon-btn" :title="pendingCount > 0 ? `待审 ${pendingCount} 条` : '暂无待审'">
+        <el-badge :is-dot="pendingCount > 0" :offset="[-2, 2]">
+          <el-icon :size="18"><Bell /></el-icon>
+        </el-badge>
+      </span>
+
       <button
         class="icon-btn"
         type="button"
@@ -85,12 +92,6 @@ function onRefresh(): void {
       >
         <AppIcon :name="themeIcon" :size="iconSize(themeIcon, '1.125rem')" />
       </button>
-
-      <span class="bell" :title="pendingCount > 0 ? `待审 ${pendingCount} 条` : '暂无待审'">
-        <el-badge :is-dot="pendingCount > 0" :offset="[-2, 2]">
-          <el-icon :size="18"><Bell /></el-icon>
-        </el-badge>
-      </span>
 
       <span class="divider" aria-hidden="true" />
 
@@ -172,13 +173,6 @@ function onRefresh(): void {
   font-variant-numeric: tabular-nums;
   color: var(--text-3);
   white-space: nowrap;
-}
-
-.bell {
-  display: grid;
-  place-items: center;
-  padding-inline: 0.25rem;
-  color: var(--text-2);
 }
 
 .divider {
