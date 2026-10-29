@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { findGroupKeyByPath, navGroups, type NavGroup } from '@renderer/navigation/menu'
 import AppIcon from '@renderer/components/AppIcon.vue'
+import { iconSize } from '@renderer/icons'
 
 const props = defineProps<{ collapsed: boolean }>()
 const emit = defineEmits<{ (event: 'expand'): void }>()
@@ -119,7 +120,7 @@ function isActive(path: string): boolean {
           :aria-label="group.label"
           @click="onGroupClick(group)"
         >
-          <AppIcon :name="group.icon" />
+          <AppIcon :name="group.icon" :size="iconSize(group.icon)" />
         </button>
 
         <template v-else>
@@ -134,7 +135,7 @@ function isActive(path: string): boolean {
             @click="onGroupClick(group)"
           >
             <span class="group__icon">
-              <AppIcon :name="group.icon" />
+              <AppIcon :name="group.icon" :size="iconSize(group.icon)" />
             </span>
             <span class="group__label">{{ group.label }}</span>
           </button>
@@ -298,7 +299,8 @@ function isActive(path: string): boolean {
   place-items: center;
   width: 1.25rem;
   height: 1.25rem;
-  color: var(--text-3);
+  /* 与文本同色（原来用 --text-3 太浅） */
+  color: inherit;
 }
 
 .group__label {
@@ -313,7 +315,7 @@ function isActive(path: string): boolean {
   place-items: center;
   width: 2.25rem;
   height: 2.25rem;
-  color: var(--text-3);
+  color: var(--sidebar-text);
   background: transparent;
   border: 0;
   border-radius: var(--radius-sm);
