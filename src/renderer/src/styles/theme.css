@@ -39,6 +39,17 @@
 
   /* 图片底衬：路线图/击球点图是白底 PNG，两套主题下都保持白底 */
   --image-frame-bg: #ffffff;
+
+  /* 侧栏（旧版布局：橘底白字；暗色下改成深底，避免大面积高饱和橘红发颤） */
+  --sidebar-bg: #f06632;
+  --sidebar-text: #ffffff;
+  --sidebar-hover: rgb(255 255 255 / 14%);
+  --sidebar-active-bg: #ffffff;
+  --sidebar-active-text: #555555;
+  /* 当前分组标题：橘底上只能靠加粗，不能用深色字（对比度不够） */
+  --sidebar-group-active-text: #ffffff;
+  --sidebar-width: 15rem;
+  --sidebar-width-collapsed: 4.25rem;
 }
 
 html.dark {
@@ -65,6 +76,14 @@ html.dark {
 
   --shadow-1: 0 1px 2px rgb(0 0 0 / 40%), 0 2px 8px rgb(0 0 0 / 28%);
   --shadow-2: 0 4px 16px rgb(0 0 0 / 45%);
+
+  /* 侧栏：深底 + 橘色高亮（docs/04 §2.3：高饱和橘红大面积铺深底会发颤） */
+  --sidebar-bg: #1a1a1d;
+  --sidebar-text: #ededef;
+  --sidebar-hover: rgb(255 255 255 / 8%);
+  --sidebar-active-bg: #2e2e33;
+  --sidebar-active-text: #ff7a45;
+  --sidebar-group-active-text: #ff7a45;
 }
 
 /* ============================================================
@@ -88,11 +107,14 @@ html.dark {
 }
 
 /* ============================================================
- * Element Plus 变量覆盖（T1.5 装上 Element Plus 后生效）
- * 注意：本文件必须在 element-plus 样式之后加载，否则会被其默认值覆盖
+ * Element Plus 变量覆盖（T1.4 起生效）
+ * 注意：本文件必须在 element-plus 样式之后加载（main.ts 里的 import 顺序）
+ * 选择器带上 html.dark：EP 的暗色变量定义在 html.dark 上，权重比 :root 高，
+ * 只用 :root 会被它盖掉
  * ============================================================ */
 
-:root {
+:root,
+html.dark {
   --el-color-primary: var(--primary);
   --el-color-primary-light-3: color-mix(in srgb, var(--primary) 70%, #fff);
   --el-color-primary-light-5: color-mix(in srgb, var(--primary) 50%, #fff);

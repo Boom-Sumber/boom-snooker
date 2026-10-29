@@ -128,7 +128,7 @@ T3.2 彩球列表页
 | `src/preload/`         | 预加载脚本（contextBridge 暴露 API）                   |
 | `src/shared/`          | 主/渲染共用：`types/`（已建）、api、auth、sync、storage、media（T2 建），别名 `@shared` |
 | `src/renderer/`        | Vue3 应用外壳：`index.html`（含 CSP）                |
-| `src/renderer/src/`    | **Vue 源码实际在这层**（electron-vite 默认结构，别名 `@renderer`）：views、components、stores、router、styles、assets |
+| `src/renderer/src/`    | **Vue 源码实际在这层**（electron-vite 默认结构，别名 `@renderer`）：`router/`、`layouts/`、`navigation/`、`views/`、`components/`、`theme/`、`styles/`、`assets/`；`stores/` 待 T2.5 |
 | `build/`               | electron-builder 的 `buildResources`（图标），**必须入库**，`.gitignore` 里不能忽略 |
 | `scripts/`             | 数据迁移、图片处理（阶段 0）                               |
 | `supabase/migrations/` | 数据库迁移文件（**唯一的 schema 真相来源**）                  |
