@@ -5,6 +5,8 @@
  * 后面接快照数据时直接用 code 过滤，不做中文反查。
  */
 
+import type { IconName } from '@renderer/icons'
+
 export interface NavItem {
   label: string
   path: string
@@ -13,6 +15,8 @@ export interface NavItem {
 export interface NavGroup {
   key: string
   label: string
+  /** 一级菜单图标（AppIcon 的语义名） */
+  icon: IconName
   items: NavItem[]
 }
 
@@ -39,11 +43,13 @@ export const navGroups: NavGroup[] = [
   {
     key: 'home',
     label: '主页',
+    icon: 'home',
     items: [{ label: 'Home', path: '/' }]
   },
   {
     key: 'balls',
     label: '彩球',
+    icon: 'balls',
     items: Object.entries(BALL_LABELS).map(([code, label]) => ({
       label,
       path: `/balls/${code}`
@@ -52,14 +58,16 @@ export const navGroups: NavGroup[] = [
   {
     key: 'advanced',
     label: '进阶',
+    icon: 'advanced',
     items: Object.entries(CATEGORY_LABELS).map(([code, label]) => ({
       label,
       path: `/advanced/${code}`
     }))
   },
   {
-    key: 'about',
-    label: '关于',
+    key: 'more',
+    label: '更多',
+    icon: 'more',
     items: [{ label: 'About', path: '/about' }]
   }
 ]

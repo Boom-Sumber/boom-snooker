@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { findGroupKeyByPath, navGroups, type NavGroup } from '@renderer/navigation/menu'
-import NavGroupIcon from './NavGroupIcon.vue'
+import AppIcon from '@renderer/components/AppIcon.vue'
 
 const props = defineProps<{ collapsed: boolean }>()
 const emit = defineEmits<{ (event: 'expand'): void }>()
@@ -101,12 +101,8 @@ function isActive(path: string): boolean {
 <template>
   <aside class="sidebar card" :class="{ 'sidebar--collapsed': collapsed }">
     <div class="sidebar__logo">
-      <span class="sidebar__mark" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none">
-          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.6" />
-          <circle cx="9.5" cy="13.5" r="2.6" fill="currentColor" />
-          <path d="M6.5 17.5L16.5 7.5" stroke="currentColor" stroke-width="1.6" />
-        </svg>
+      <span class="sidebar__mark">
+        <AppIcon name="logo" size="1.5rem" />
       </span>
       <span v-if="!collapsed" class="sidebar__name">Snooker</span>
     </div>
@@ -123,7 +119,7 @@ function isActive(path: string): boolean {
           :aria-label="group.label"
           @click="onGroupClick(group)"
         >
-          <NavGroupIcon />
+          <AppIcon :name="group.icon" />
         </button>
 
         <template v-else>
@@ -138,7 +134,7 @@ function isActive(path: string): boolean {
             @click="onGroupClick(group)"
           >
             <span class="group__icon">
-              <NavGroupIcon />
+              <AppIcon :name="group.icon" />
             </span>
             <span class="group__label">{{ group.label }}</span>
           </button>
@@ -209,11 +205,6 @@ function isActive(path: string): boolean {
   color: #fff;
   background: var(--primary);
   border-radius: 50%;
-}
-
-.sidebar__mark svg {
-  width: 100%;
-  height: 100%;
 }
 
 .sidebar__name {
@@ -310,11 +301,6 @@ function isActive(path: string): boolean {
   color: var(--text-3);
 }
 
-.group__icon svg {
-  width: 100%;
-  height: 100%;
-}
-
 .group__label {
   overflow: hidden;
   white-space: nowrap;
@@ -332,11 +318,6 @@ function isActive(path: string): boolean {
   border: 0;
   border-radius: var(--radius-sm);
   cursor: pointer;
-}
-
-.group__badge svg {
-  width: 1.25rem;
-  height: 1.25rem;
 }
 
 .group__badge:hover {

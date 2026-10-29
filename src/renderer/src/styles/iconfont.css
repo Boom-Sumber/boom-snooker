@@ -1,0 +1,64 @@
+/* ============================================================
+ * 图标字体（iconfont.cn 项目 5248639，Font Family: snooker-icon）
+ *
+ * 只放 woff2（2.4 KB），Chromium 全支持，不需要 ttf 兜底。
+ * 码点与来源见 D:\78260\Desktop\iconfont\图标对照.txt
+ * 组件侧统一走 <AppIcon name="home" />，不直接写 .icon-shouye 类名
+ * ============================================================ */
+
+@font-face {
+  font-family: 'snooker-icon';
+  src: url('../assets/fonts/iconfont.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  /* 图标字体用 block：宁可等一小会儿，也不要先闪一个方块字 */
+  font-display: block;
+}
+
+.icon-shouye:before {
+  content: '\e600';
+}
+
+.icon-taiqiuganh:before {
+  content: '\e791';
+}
+
+.icon-jinjie-copy:before {
+  content: '\e633';
+}
+
+.icon-qita:before {
+  content: '\e604';
+}
+
+.icon-taiqiu1:before {
+  content: '\e655';
+}
+
+.icon-siluoketaiqiu:before {
+  content: '\e6c2';
+}
+
+.icon-sun:before {
+  content: '\e861';
+}
+
+.icon-moon:before {
+  content: '\e981';
+}
+
+.icon-zuixiaohua:before {
+  content: '\e650';
+}
+
+.icon-zuidahua:before {
+  content: '\e651';
+}
+
+.icon-chuangkouhuanyuan:before {
+  content: '\e65b';
+}
+
+.icon-guanbi:before {
+  content: '\e61a';
+}
