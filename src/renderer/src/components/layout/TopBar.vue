@@ -161,7 +161,7 @@ function onRefresh(): void {
 .who__name {
   overflow: hidden;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-1);
   white-space: nowrap;
   text-overflow: ellipsis;

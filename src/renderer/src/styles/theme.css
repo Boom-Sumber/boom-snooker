@@ -1,4 +1,17 @@
 /* ============================================================
+ * 内置字体：PingFang SC Regular
+ * 只有 Regular 一个字重，界面里尽量避免用 600/700（会走合成加粗，发虚）
+ * ============================================================ */
+
+@font-face {
+  font-family: 'PingFang SC';
+  src: url('../assets/fonts/PingFangSC-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ============================================================
  * 主题变量（亮 / 暗两套）
  * 取值来源：docs/04-UI设计规范.md 第 2 节
  * 使用约定：
@@ -100,7 +113,7 @@ html.dark {
   --transition-fast: 120ms ease;
 
   --font-family-base:
-    system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', 'HarmonyOS Sans SC', sans-serif;
+    'PingFang SC', system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif;
 
   /* 字号用 clamp，窗口缩放不破版（docs/04 第 6 节） */
   --font-size-base: clamp(13px, 0.9vw, 15px);

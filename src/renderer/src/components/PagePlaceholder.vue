@@ -29,7 +29,7 @@ h1 {
   margin: 0;
   color: var(--primary);
   font-size: clamp(1.125rem, 1.4vw, 1.375rem);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .description {

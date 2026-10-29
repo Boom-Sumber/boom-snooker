@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { findGroupKeyByPath, navGroups, type NavGroup } from '@renderer/navigation/menu'
 
@@ -12,6 +12,53 @@ const route = useRoute()
 const openGroups = ref<string[]>(['home', 'balls'])
 
 const activeGroupKey = computed(() => findGroupKeyByPath(route.path))
+
+/**
+ * 二级菜单对齐：同一分组内按最长的那条算统一宽度，
+ * 每条文字在这个宽度里居中 —— 短字符两侧自动留白，左右边界就齐了。
+ * 用 canvas 量，不依赖 DOM 可见性（分组收起时也能算），也不用手工插空格。
+ */
+const labelWidths = ref<Record<string, number>>({})
+
+async function measureLabelWidths(): Promise<void> {
+  const ctx = document.createElement('canvas').getContext('2d')
+  if (!ctx) return
+
+  const rootStyle = getComputedStyle(document.documentElement)
+  const family = rootStyle.getPropertyValue('--font-family-base').trim() || 'sans-serif'
+  const rootSize = Number.parseFloat(rootStyle.fontSize) || 16
+
+  // 等内置字体真正加载完，否则量到的是回退字体的宽度
+  try {
+    await document.fonts.load(`400 ${rootSize}px "PingFang SC"`)
+  } catch {
+    // 加载失败就用回退字体量，不影响功能
+  }
+  await document.fonts.ready
+
+  // 与 .item 的字号/字重保持一致
+  ctx.font = `400 ${rootSize}px ${family}`
+
+  const next: Record<string, number> = {}
+  for (const group of navGroups) {
+    let max = 0
+    for (const item of group.items) {
+      max = Math.max(max, ctx.measureText(item.label).width)
+    }
+    // +1 吸收亚像素误差，避免最后一个字被挤到下一行
+    next[group.key] = Math.ceil(max) + 1
+  }
+  labelWidths.value = next
+}
+
+function labelWidth(key: string): string | undefined {
+  const width = labelWidths.value[key]
+  return width ? `${width}px` : undefined
+}
+
+onMounted(() => {
+  void measureLabelWidths()
+})
 
 // 路由变化时自动展开所属分组（比如从顶部栏跳进来）
 watch(
@@ -111,7 +158,9 @@ function isActive(path: string): boolean {
                 class="item"
                 :class="{ 'is-active': isActive(item.path) }"
               >
-                {{ item.label }}
+                <span class="item__label" :style="{ width: labelWidth(group.key) }">
+                  {{ item.label }}
+                </span>
               </RouterLink>
             </li>
           </ul>
@@ -182,7 +231,7 @@ function isActive(path: string): boolean {
 .sidebar__name {
   color: var(--text-1);
   font-size: clamp(1.125rem, 1.3vw, 1.375rem);
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
@@ -209,7 +258,7 @@ function isActive(path: string): boolean {
   padding: 0.5rem 0.625rem;
   font-family: inherit;
   font-size: 1.0625rem;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--sidebar-text);
   text-align: left;
   background: transparent;
@@ -228,7 +277,8 @@ function isActive(path: string): boolean {
 .group__badge.is-active::before {
   position: absolute;
   top: 50%;
-  left: -0.5rem;
+  /* 别贴着卡片左边，留出一点呼吸感 */
+  left: 0;
   width: 3px;
   height: 1.125rem;
   background: var(--sidebar-indicator);
@@ -289,15 +339,26 @@ function isActive(path: string): boolean {
 
 .item {
   display: block;
-  padding: 0.5rem 0.75rem 0.5rem 2.75rem;
+  padding: 0.5rem 0.75rem;
   font-size: 1rem;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--text-2);
+  text-align: center;
   text-decoration: none;
   border-radius: var(--radius-sm);
   transition:
     background-color var(--transition-fast),
     color var(--transition-fast);
+}
+
+/*
+ * 同一分组内统一宽度、文字居中：
+ * 短标签（黄球）两侧自动留白，左右边界与长标签（咖啡球）对齐
+ */
+.item__label {
+  display: inline-block;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .item:hover {
