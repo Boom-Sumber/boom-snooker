@@ -13,8 +13,6 @@ export interface NavItem {
 export interface NavGroup {
   key: string
   label: string
-  /** 折叠状态下显示的字符 */
-  short: string
   items: NavItem[]
 }
 
@@ -41,13 +39,11 @@ export const navGroups: NavGroup[] = [
   {
     key: 'home',
     label: '主页',
-    short: '主',
     items: [{ label: 'Home', path: '/' }]
   },
   {
     key: 'balls',
     label: '彩球',
-    short: '彩',
     items: Object.entries(BALL_LABELS).map(([code, label]) => ({
       label,
       path: `/balls/${code}`
@@ -56,7 +52,6 @@ export const navGroups: NavGroup[] = [
   {
     key: 'advanced',
     label: '进阶',
-    short: '进',
     items: Object.entries(CATEGORY_LABELS).map(([code, label]) => ({
       label,
       path: `/advanced/${code}`
@@ -65,7 +60,6 @@ export const navGroups: NavGroup[] = [
   {
     key: 'about',
     label: '关于',
-    short: '关',
     items: [{ label: 'About', path: '/about' }]
   }
 ]

@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { findGroupKeyByPath, navGroups, type NavGroup } from '@renderer/navigation/menu'
+import NavGroupIcon from './NavGroupIcon.vue'
 
 const props = defineProps<{ collapsed: boolean }>()
 const emit = defineEmits<{ (event: 'expand'): void }>()
@@ -112,16 +113,17 @@ function isActive(path: string): boolean {
 
     <nav class="sidebar__nav">
       <div v-for="group in navGroups" :key="group.key" class="group">
-        <!-- 折叠态：只显示一个字，点了展开侧栏 -->
+        <!-- 折叠态：只显示分组图标（不是文字首字），点了展开侧栏 -->
         <button
           v-if="collapsed"
           class="group__badge"
           :class="{ 'is-active': activeGroupKey === group.key }"
           type="button"
           :title="group.label"
+          :aria-label="group.label"
           @click="onGroupClick(group)"
         >
-          {{ group.short }}
+          <NavGroupIcon />
         </button>
 
         <template v-else>
@@ -135,18 +137,8 @@ function isActive(path: string): boolean {
             type="button"
             @click="onGroupClick(group)"
           >
-            <span class="group__icon" aria-hidden="true">
-              <svg viewBox="0 0 16 16" fill="none">
-                <rect
-                  x="2.6"
-                  y="2.6"
-                  width="10.8"
-                  height="10.8"
-                  rx="2.6"
-                  stroke="currentColor"
-                  stroke-width="1.3"
-                />
-              </svg>
+            <span class="group__icon">
+              <NavGroupIcon />
             </span>
             <span class="group__label">{{ group.label }}</span>
           </button>
@@ -313,13 +305,16 @@ function isActive(path: string): boolean {
   place-items: center;
   width: 2.25rem;
   height: 2.25rem;
-  font-family: inherit;
-  font-size: 1.0625rem;
-  color: var(--sidebar-text);
+  color: var(--text-3);
   background: transparent;
   border: 0;
   border-radius: var(--radius-sm);
   cursor: pointer;
+}
+
+.group__badge svg {
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
 .group__badge:hover {
@@ -342,7 +337,7 @@ function isActive(path: string): boolean {
   padding: 0.5rem 0.75rem;
   font-size: 1rem;
   font-weight: 400;
-  color: var(--text-2);
+  color: var(--text-1);
   text-align: center;
   text-decoration: none;
   border-radius: var(--radius-sm);
@@ -352,12 +347,14 @@ function isActive(path: string): boolean {
 }
 
 /*
- * 同一分组内统一宽度、文字居中：
- * 短标签（黄球）两侧自动留白，左右边界与长标签（咖啡球）对齐
+ * 同一分组内统一宽度 + 两端对齐：
+ * 两个字（黄球）会把多出来的宽度摊到字与字之间，撑满到三个字（咖啡球）的宽度，
+ * 这样左右边界都对齐，视觉上也居中 —— 不用往数据里插空格
  */
 .item__label {
   display: inline-block;
-  text-align: center;
+  text-align: justify;
+  text-align-last: justify;
   white-space: nowrap;
 }
 
