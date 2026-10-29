@@ -32,8 +32,9 @@ jobs:
             exit 1
           fi
 
-      # 服务器是 Postgres 17，runner 自带的 pg_dump 版本更老会报
-      # "server version mismatch"，所以装 17 的客户端
+      # 服务器是 Postgres 17，runner 自带的 pg_dump 是 16（/usr/bin/pg_dump 直接指向 16，
+      # 装完 17 也不会改指向），会报 "server version mismatch"。
+      # 所以这里装 17 并用**绝对路径**调用，不依赖 PATH。
       - name: 安装 PostgreSQL 17 客户端
         run: |
           sudo install -d /usr/share/postgresql-common/pgdg
@@ -44,7 +45,19 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-17
-          pg_dump --version
+
+          PGBIN=/usr/lib/postgresql/17/bin
+          if [ ! -x "$PGBIN/pg_dump" ]; then
+            echo "::error::$PGBIN/pg_dump 不存在，已装的版本有："
+            ls -1 /usr/lib/postgresql/ || true
+            exit 1
+          fi
+          echo "PGBIN=$PGBIN" >> "$GITHUB_ENV"
+          echo "--- 实际使用的 pg_dump ---"
+          "$PGBIN/pg_dump" --version
+          echo "--- PATH 里的 pg_dump（会被忽略）---"
+          readlink -f "$(command -v pg_dump)" || true
+          pg_dump --version || true
 
       - name: Dump 数据库
         env:
@@ -54,7 +67,7 @@ jobs:
           echo "STAMP=$STAMP" >> "$GITHUB_ENV"
           mkdir -p backup
           # 纯 SQL 便于人工查看与 psql 恢复；--no-owner/--no-privileges 便于恢复到任意实例
-          pg_dump "$DB_URL" --no-owner --no-privileges --format=plain \
+          "$PGBIN/pg_dump" "$DB_URL" --no-owner --no-privileges --format=plain \
             --file="backup/snooker-$STAMP.sql"
           gzip -9 "backup/snooker-$STAMP.sql"
           ls -lh backup/
