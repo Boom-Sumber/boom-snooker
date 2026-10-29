@@ -126,11 +126,26 @@ T3.2 彩球列表页
 | ---------------------- | --------------------------------------------- |
 | `src/main/`            | Electron 主进程：窗口、主题、IPC、本地文件                   |
 | `src/preload/`         | 预加载脚本（contextBridge 暴露 API）                   |
-| `src/shared/`          | 主/渲染共用：api、auth、sync、storage、media            |
-| `src/renderer/`        | Vue3 应用：views、components、stores、router、styles |
+| `src/shared/`          | 主/渲染共用：api、auth、sync、storage、media（T2 建）      |
+| `src/renderer/`        | Vue3 应用外壳：`index.html`（含 CSP）                |
+| `src/renderer/src/`    | **Vue 源码实际在这层**（electron-vite 默认结构，别名 `@renderer`）：views、components、stores、router、styles、assets |
+| `build/`               | electron-builder 的 `buildResources`（图标），**必须入库**，`.gitignore` 里不能忽略 |
 | `scripts/`             | 数据迁移、图片处理（阶段 0）                               |
 | `supabase/migrations/` | 数据库迁移文件（**唯一的 schema 真相来源**）                  |
 | `docs/`                | 本文档目录                                         |
+
+### 常用命令
+
+```bash
+npm run dev        # 开发模式（起窗口 + HMR）
+npm run build      # typecheck + 打包到 out/
+npm run typecheck  # tsc + vue-tsc
+npm run lint       # ESLint（--fix 用 npm run lint:fix）
+```
+
+> ⚠️ 若 `npm run dev` 报 `Cannot read properties of undefined (reading 'isPackaged')`，
+> 是环境里有 `ELECTRON_RUN_AS_NODE=1`（Electron 被当成 Node 跑），用 `env -u ELECTRON_RUN_AS_NODE npm run dev`。
+> 详见 `docs/05` 第 3.1 节。
 
 ---
 

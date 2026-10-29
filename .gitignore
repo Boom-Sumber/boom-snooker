@@ -6,10 +6,11 @@ node_modules/
 dist/
 out/
 release/
-build/
 *.exe
 *.msi
 *.nsis.7z
+
+# 注意：build/ 不忽略 —— 它是 electron-builder 的 buildResources（图标），必须入库
 
 # 环境变量（含密钥，绝不入库）
 .env.local
@@ -43,6 +44,7 @@ temp.json
 
 # TypeScript
 *.tsbuildinfo
+.eslintcache
 
 # AI 助手的本地记忆与临时文件（不是项目产物）
 .workbuddy-ai/

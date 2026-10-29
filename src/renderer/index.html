@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>斯诺克走位教学</title>
+    <!--
+      CSP：图片与接口都要放行 Supabase（Storage 图片 + PostgREST/Auth），
+      开发期还需 ws: 给 Vite HMR。改这里之前先想清楚会不会把远程图片挡掉。
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.supabase.co; connect-src 'self' https://*.supabase.co ws: http://localhost:*"
+    />
+  </head>
+
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

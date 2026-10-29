@@ -26,6 +26,20 @@ cp .env.example .env.local
 npm run dev
 ```
 
+> 如果 `npm run dev` 报 `Cannot read properties of undefined (reading 'isPackaged')`，
+> 说明 shell 里有 `ELECTRON_RUN_AS_NODE=1`，用 `env -u ELECTRON_RUN_AS_NODE npm run dev`（见 `docs/05` 第 3.1 节）。
+
+## 常用命令
+
+| 命令 | 作用 |
+|---|---|
+| `npm run dev` | 开发模式（窗口 + HMR） |
+| `npm run build` | 类型检查 + 构建到 `out/` |
+| `npm run typecheck` | `tsc` + `vue-tsc` |
+| `npm run lint` / `lint:fix` | ESLint 检查 / 自动修复 |
+| `npm run format` | Prettier 格式化（不碰 `docs/` 与 SQL） |
+| `npm run build:win` | 打 Windows 安装包（T6.3 完善） |
+
 ## 文档
 
 | 文件 | 内容 |
