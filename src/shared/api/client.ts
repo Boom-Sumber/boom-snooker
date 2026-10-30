@@ -12,6 +12,7 @@
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '../types/db'
+import { authStorage } from '../auth/storage'
 
 /** 带 Database 泛型的客户端类型，业务代码统一用它做标注 */
 export type DbClient = SupabaseClient<Database>
@@ -34,7 +35,8 @@ export const supabase: DbClient = createClient<Database>(SUPABASE_URL, SUPABASE_
   auth: {
     // 桌面端没有 OAuth 回调页，关掉 URL 里的 session 探测
     detectSessionInUrl: false,
-    // 会话持久化到 localStorage（T2.3 再评估是否换成 safeStorage 加密存储）
+    // 会话交给主进程 safeStorage（DPAPI）加密落盘，不用 localStorage 明文
+    storage: authStorage,
     persistSession: true,
     autoRefreshToken: true,
     // 独立 key，避免和同域其他应用串号

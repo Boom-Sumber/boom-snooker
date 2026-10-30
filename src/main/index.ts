@@ -1,5 +1,6 @@
 import { app, BrowserWindow } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
+import { registerAuthIpc } from './auth'
 import { initTheme } from './theme'
 import { createMainWindow, registerWindowIpc } from './window'
 
@@ -24,6 +25,7 @@ if (!gotSingleInstanceLock) {
     initTheme()
 
     registerWindowIpc()
+    registerAuthIpc()
 
     // 开发期 F12 开关 DevTools，生产期忽略 Ctrl+R
     app.on('browser-window-created', (_, window) => {
