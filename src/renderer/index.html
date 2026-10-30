@@ -6,10 +6,11 @@
     <!--
       CSP：图片与接口都要放行 Supabase（Storage 图片 + PostgREST/Auth），
       开发期还需 ws: 给 Vite HMR。改这里之前先想清楚会不会把远程图片挡掉。
+      启动页诗句走 v1.jinrishici.com（T3.1），漏了这条 fetch 会被静默拦掉。
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.supabase.co; font-src 'self' data:; connect-src 'self' https://*.supabase.co ws: http://localhost:*"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.supabase.co; font-src 'self' data:; connect-src 'self' https://*.supabase.co https://v1.jinrishici.com ws: http://localhost:*"
     />
   </head>
 

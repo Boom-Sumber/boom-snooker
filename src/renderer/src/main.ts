@@ -16,6 +16,9 @@ import { initTheme } from './theme'
 // 首帧之前把主题定下来（不闪）
 initTheme()
 
+// 启动页的入口判断在 router/index.ts（必须在 createWebHashHistory 之前改 hash，
+// 原因见那里的注释）
+
 const app = createApp(App)
 app.use(createPinia()).use(ElementPlus, { locale: zhCn }).use(router).mount('#app')
 
