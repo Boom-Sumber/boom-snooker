@@ -5,22 +5,20 @@ import './styles/iconfont.css'
 import './assets/main.css'
 
 import { createApp } from 'vue'
+import { createPinia } from 'pinia'
 import ElementPlus from 'element-plus'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
-import { initAuth } from '@shared/auth'
 import App from './App.vue'
 import { router } from './router'
+import { bootstrapStores } from './stores'
 import { initTheme } from './theme'
 
 // 首帧之前把主题定下来（不闪）
 initTheme()
 
-createApp(App).use(ElementPlus, { locale: zhCn }).use(router).mount('#app')
+const app = createApp(App)
+app.use(createPinia()).use(ElementPlus, { locale: zhCn }).use(router).mount('#app')
 
-// 读回加密保存的会话，并让 token 自动刷新开始计时。
-// 不阻塞挂载：D22 之后未登录也能看数据，认证失败不该拦住首屏。
-void initAuth()
-  .then((session) => {
-    if (session) console.info('[auth] 已恢复登录会话')
-  })
-  .catch((error: unknown) => console.error('[auth] 恢复会话失败：', error))
+// 挂载之后再拉数据 / 恢复会话：首屏用本地缓存先渲染，网络慢不阻塞界面。
+// 两个 init 都不抛错（见 stores/index.ts），失败只影响"新不新"，不影响"能不能看"。
+bootstrapStores()

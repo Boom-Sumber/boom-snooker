@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import { ElMessage } from 'element-plus'
 import AppIcon from '@renderer/components/AppIcon.vue'
 import { iconSize, type IconName } from '@renderer/icons'
 import avatarBoy from '@renderer/assets/avatars/avatar-boy.png'
-import { setThemeMode, themeIsDark } from '@renderer/theme'
+import { useAuthStore, useDatasetStore, useThemeStore } from '@renderer/stores'
 import WindowControls from './WindowControls.vue'
 
 defineProps<{ collapsed: boolean }>()
@@ -35,17 +36,40 @@ const clock = computed(() => {
  * 主题切换：只做「亮 ↔ 暗」两态。
  * 「跟随系统」留到设置页再加（用户要求），这里不暴露第三档。
  */
+const theme = useThemeStore()
+const { isDark: themeIsDark } = storeToRefs(theme)
+
 const themeIcon = computed<IconName>(() => (themeIsDark.value ? 'moon' : 'sun'))
 
 function toggleTheme(): void {
-  void setThemeMode(themeIsDark.value ? 'light' : 'dark')
+  void theme.toggle()
 }
+
+/** 头像与昵称：登录后跟着 profile 走，未登录显示占位 */
+const auth = useAuthStore()
+const { nickname, avatar } = storeToRefs(auth)
+const avatarSrc = computed(() => avatar.value || avatarBoy)
 
 /** 待审数量：T4.3 接审核接口，0 时不显示红点 */
 const pendingCount = ref(0)
 
-function onRefresh(): void {
-  ElMessage.info('数据同步在 T2.4 接入')
+/** 手动同步：强制重下全量快照（T2.4） */
+const dataset = useDatasetStore()
+
+async function onRefresh(): Promise<void> {
+  const status = await dataset.sync(true)
+  const text: Record<string, string> = {
+    updated: '数据已更新',
+    'up-to-date': '已是最新版本',
+    offline: '连不上服务器，继续使用本地数据',
+    error: dataset.lastError || '同步失败'
+  }
+  const message = text[status] ?? '同步完成'
+  if (status === 'updated' || status === 'up-to-date') {
+    ElMessage.success(message)
+  } else {
+    ElMessage.warning(message)
+  }
 }
 </script>
 
@@ -64,10 +88,10 @@ function onRefresh(): void {
         </svg>
       </button>
 
-      <el-avatar :size="40" :src="avatarBoy" class="no-drag" />
+      <el-avatar :size="40" :src="avatarSrc" class="no-drag" />
 
       <div class="who">
-        <span class="who__name">未登录</span>
+        <span class="who__name">{{ nickname || '未登录' }}</span>
         <span class="who__time">{{ clock }}</span>
       </div>
     </div>
