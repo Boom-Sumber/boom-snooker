@@ -133,14 +133,20 @@ async function onSaved(): Promise<void> {
     </el-empty>
 
     <article v-else class="detail__body card">
-      <h1 class="detail__title">
-        <span class="detail__strength">{{ strengthText }}</span>
-        <span>{{ ball.method }}</span>
-      </h1>
+      <!-- 标题行：左「力度 + 进袋方式」，右上「什么球 / 哪个袋」用胶囊标出来 -->
+      <header class="detail__head">
+        <h1 class="detail__title">
+          <span class="detail__strength">{{ strengthText }}</span>
+          <span class="detail__method">{{ ball.method }}</span>
+        </h1>
+
+        <div class="detail__tags">
+          <span class="tag">{{ colorName }}</span>
+          <span class="tag">{{ pocketText }}</span>
+        </div>
+      </header>
 
       <p class="detail__meta">
-        <span>{{ colorName }}</span>
-        <span>{{ pocketText }}</span>
         <span>作者：{{ ball.updated_by || '未知' }}</span>
         <span>更新时间：{{ updatedText }}</span>
       </p>
@@ -272,17 +278,50 @@ async function onSaved(): Promise<void> {
   padding: clamp(1rem, 1.6vw, 1.75rem);
 }
 
-.detail__title {
+/* 标题行：左边「力度 + 进袋方式」，右边「球 / 袋」胶囊，同一行 */
+.detail__head {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.detail__title {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
   align-items: baseline;
+  min-width: 0;
   margin: 0;
   font-size: clamp(1.25rem, 1.7vw, 1.5rem);
   font-weight: 500;
   line-height: 1.4;
   color: var(--text-1);
   overflow-wrap: anywhere;
+}
+
+.detail__tags {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+/*
+ * 彩球 / 袋口胶囊：实心主题色 + 白字，比浅底更显眼（用户要求"看得显眼一点"）
+ * 亮暗两套主题都用 --primary，自动跟随
+ */
+.tag {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: #fff;
+  white-space: nowrap;
+  background: var(--primary);
+  border-radius: 999px;
 }
 
 /* 力度是这条打法的视觉锚点（旧版就是 30px 大字） */
