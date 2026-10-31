@@ -103,6 +103,8 @@ T3.2 彩球列表页
   4. `git commit`
   5. `git push`（仓库私有，keepalive / 备份两个 workflow 跑的都是 GitHub 上的代码，不 push 等于备份对旧版本生效）
 
+> **`git push` 只执行一次。** 失败（常见 `CONNECT tunnel failed, response 502`、`schannel: server closed abruptly`，都是代理/网络问题，跟仓库无关）**不要连续重试**：把「未推送 + commit 号」写进 `docs/02-进度日志.md` 和工作区记忆，然后继续手上的事；下次会话第一件事先 `git push`。反复重试只是浪费时间，结果一样。
+
 > 第 1、2、3 步比代码本身更重要——**新会话靠这三份记录接上手**。代码写完不更新文档，下次会话就得重新读一遍代码。
 >
 > 三处记录的分工，不要混：

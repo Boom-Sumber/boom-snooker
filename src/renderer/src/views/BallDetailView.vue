@@ -2,8 +2,14 @@
 /**
  * 彩球打法详情页
  *
- * 列表页只做索引（预览图 + 力度 + 进袋方式 + 作者/日期），完整内容在这里：
- * 击球点 / 蓝点 / 路线三张图（可点开原尺寸左右翻）、方法、低杆/高杆走位补偿、补充说明。
+ * 列表页的卡片已经带全部文字，这里补的是"看全 + 看大"：
+ * 方法 / 低杆走位 / 高杆走位 / 补充说明，下面再放三张图。
+ *
+ * 图片区版式（用户指定）：
+ *   - 放在文字内容**下面**
+ *   - 两列：左列「击球点 / 蓝点」上下排列，**固定 150×150 拉伸显示**；
+ *     右列「路线图」按预览尺寸显示
+ *   - **只有路线图能点开原图**，击球点/蓝点只是静态缩略图
  *
  * 以后的评论区（阶段 4）挂在页面底部 —— 现在只留位置，不做设计。
  *
@@ -37,42 +43,13 @@ const pocketText = computed(() =>
   ball.value ? dataset.dictName('pocket', ball.value.pocket_code) : ''
 )
 
-/**
- * 三张图按「击球点 → 蓝点 → 路线」排列，查看器里就是这个顺序。
- * 空字段要过滤掉（库里有缺图的行），开查看器时按 kind 反查下标，不能按下标硬开。
- */
-type MediaKind = 'impact' | 'blue' | 'route'
-
-const MEDIA_LABELS: Record<MediaKind, string> = {
-  impact: '击球点',
-  blue: '蓝点',
-  route: '路线图'
-}
-
-const media = computed(() => {
-  const record = ball.value
-  if (!record) return []
-  return (
-    [
-      { kind: 'impact' as const, url: imageUrl(record.impact_image) },
-      { kind: 'blue' as const, url: imageUrl(record.blue_image) },
-      { kind: 'route' as const, url: imageUrl(record.route_image) }
-    ] satisfies { kind: MediaKind; url: string }[]
-  ).filter((item) => item.url.length > 0)
-})
-
-const previewList = computed(() => media.value.map((item) => item.url))
+/** 三张图分开取：只有路线图会进查看器 */
+const impactUrl = computed(() => imageUrl(ball.value?.impact_image ?? ''))
+const blueUrl = computed(() => imageUrl(ball.value?.blue_image ?? ''))
+const routeUrl = computed(() => imageUrl(ball.value?.route_image ?? ''))
 
 const viewerVisible = ref(false)
-const viewerIndex = ref(0)
 const formVisible = ref(false)
-
-function openViewer(kind: MediaKind): void {
-  const index = media.value.findIndex((item) => item.kind === kind)
-  if (index < 0) return
-  viewerIndex.value = index
-  viewerVisible.value = true
-}
 
 const updatedText = computed(() => {
   const raw = ball.value?.updated_at
@@ -168,22 +145,7 @@ async function onSaved(): Promise<void> {
         <span>更新时间：{{ updatedText }}</span>
       </p>
 
-      <!-- 三张图：有哪张显示哪张，点开可左右翻 -->
-      <div v-if="media.length" class="detail__media-list">
-        <figure v-for="item in media" :key="item.kind" class="media">
-          <figcaption class="media__label">{{ MEDIA_LABELS[item.kind] }}</figcaption>
-          <button
-            class="media__frame"
-            type="button"
-            title="查看大图"
-            @click="openViewer(item.kind)"
-          >
-            <img :src="item.url" :alt="MEDIA_LABELS[item.kind]" loading="lazy" />
-          </button>
-        </figure>
-      </div>
-      <p v-else class="detail__no-media">这条记录没有配图</p>
-
+      <!-- 文字在上，图片在下 -->
       <dl class="detail__fields">
         <div class="field">
           <dt>方法</dt>
@@ -203,13 +165,51 @@ async function onSaved(): Promise<void> {
         </div>
       </dl>
 
+      <!--
+        图片区：两列
+        左列：击球点 / 蓝点 上下排列，固定 150×150 拉伸（不点开）
+        右列：路线图按预览尺寸显示，点开看原图
+      -->
+      <div class="detail__media">
+        <div class="media__col">
+          <figure class="media">
+            <figcaption class="media__label">击球点</figcaption>
+            <div class="media__box media__box--square">
+              <img v-if="impactUrl" :src="impactUrl" alt="击球点示意图" loading="lazy" />
+              <span v-else class="media__empty">无图</span>
+            </div>
+          </figure>
+
+          <figure class="media">
+            <figcaption class="media__label">蓝点</figcaption>
+            <div class="media__box media__box--square">
+              <img v-if="blueUrl" :src="blueUrl" alt="蓝点示意图" loading="lazy" />
+              <span v-else class="media__empty">无图</span>
+            </div>
+          </figure>
+        </div>
+
+        <figure class="media media--route">
+          <figcaption class="media__label">路线图</figcaption>
+          <button
+            v-if="routeUrl"
+            class="media__box media__box--route"
+            type="button"
+            title="查看原图"
+            @click="viewerVisible = true"
+          >
+            <img :src="routeUrl" alt="路线图" loading="lazy" />
+          </button>
+          <div v-else class="media__box media__box--route media__box--empty">无路线图</div>
+        </figure>
+      </div>
+
       <!-- 评论区（T4）插在这里 -->
     </article>
 
     <ElImageViewer
-      v-if="viewerVisible"
-      :url-list="previewList"
-      :initial-index="viewerIndex"
+      v-if="viewerVisible && routeUrl"
+      :url-list="[routeUrl]"
       teleported
       @close="viewerVisible = false"
     />
@@ -300,19 +300,31 @@ async function onSaved(): Promise<void> {
   color: var(--text-2);
 }
 
-.detail__media-list {
-  display: flex;
-  flex-wrap: wrap;
+/*
+ * 图片区：两列
+ *   左列 击球点 / 蓝点 上下排列，固定 150×150（9.375rem），object-fit: fill 拉伸
+ *   右列 路线图，按预览尺寸（最宽 100%、最高 45vh）显示，可点开原图
+ */
+.detail__media {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 1rem;
+  align-items: start;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.media__col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .media {
   display: flex;
-  /* 不拉伸：框跟着图片的自然宽度走，小图（击球点 60px）不会留一大片空框 */
-  flex: 0 0 auto;
   flex-direction: column;
   gap: 0.375rem;
-  max-width: 100%;
+  min-width: 0;
   margin: 0;
 }
 
@@ -321,29 +333,51 @@ async function onSaved(): Promise<void> {
   color: var(--text-3);
 }
 
-.media__frame {
+.media__box {
   display: grid;
   place-items: center;
-  width: fit-content;
-  max-width: 100%;
-  /* 图多是白底或透明底，这里不加底衬，暗色主题下不留白块 */
-  padding: 0;
   overflow: hidden;
-  cursor: zoom-in;
+  /* 图多是白底或透明底，这里不加底衬，暗色主题下不留白块 */
   background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
 }
 
-.media__frame img {
+/* 击球点 / 蓝点：固定 150×150，拉伸填满（原图 60~100px，会放大） */
+.media__box--square {
+  width: 9.375rem;
+  height: 9.375rem;
+}
+
+.media__box--square img {
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+}
+
+/* 路线图：框贴着图片，可点开原图 */
+.media__box--route {
+  width: fit-content;
+  max-width: 100%;
+  padding: 0;
+  cursor: zoom-in;
+}
+
+.media__box--route img {
   display: block;
   max-width: 100%;
   max-height: 45vh;
   object-fit: contain;
 }
 
-.detail__no-media {
-  margin: 0;
+.media__box--empty {
+  width: 100%;
+  padding: 2rem 0;
+  cursor: default;
+  border-style: dashed;
+}
+
+.media__empty {
   font-size: var(--font-size-sm);
   color: var(--text-3);
 }
