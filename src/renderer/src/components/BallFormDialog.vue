@@ -118,6 +118,19 @@ const methodOptions = computed(() => {
   return [...seen].sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))
 })
 
+/**
+ * 进袋方式用 `el-autocomplete` 而不是 `el-select + allow-create`
+ *
+ * 原因（用户实测反馈）：`allow-create` 下输入的自定义值**只有按回车**才会写进 model，
+ * 直接按 Tab / 点别的输入框，输入内容会被清掉。
+ * `el-autocomplete` 的 v-model 直接绑输入框文本，失焦天然保留 —— 语义就是"可输入可选"。
+ */
+function queryMethods(query: string, callback: (items: { value: string }[]) => void): void {
+  const keyword = query.trim()
+  const list = methodOptions.value.filter((item) => !keyword || item.includes(keyword))
+  callback(list.map((value) => ({ value })))
+}
+
 const rules: FormRules = {
   color_code: [{ required: true, message: '请选择彩球', trigger: 'change' }],
   pocket_code: [{ required: true, message: '请选择袋口', trigger: 'change' }],
@@ -160,21 +173,36 @@ watch(
   }
 )
 
+/** 允许上传的格式（浏览器 canvas 都能解出来） */
+const ACCEPT_TYPES = ['image/png', 'image/jpeg', 'image/webp']
+const ACCEPT_ATTR = ACCEPT_TYPES.join(',')
+/** 单张上限：源图多是几十 KB 的 PNG，5 MB 足够；再大转 WebP 也慢 */
+const MAX_SIZE_MB = 5
+
 /** 选图：只记文件和预览，**不上传** */
 function onPick(slot: Slot, uploadFile: UploadFile): void {
   const raw = uploadFile.raw
   if (!raw) return
-  if (!raw.type.startsWith('image/')) {
-    ElMessage.warning('只能选图片文件')
+
+  if (!ACCEPT_TYPES.includes(raw.type)) {
+    ElMessage.warning('只支持 JPG / PNG / WebP 图片')
+    return
+  }
+  if (raw.size > MAX_SIZE_MB * 1024 * 1024) {
+    ElMessage.warning(
+      `图片不能超过 ${MAX_SIZE_MB} MB（当前 ${(raw.size / 1024 / 1024).toFixed(1)} MB）`
+    )
     return
   }
 
   const url = previewUrl(raw)
   objectUrls.push(url)
-  images[slot].file = raw
-  images[slot].preview = url
+  // ⚠️ 整对象替换而不是改字段：`images` 是 reactive 的嵌套对象，
+  // 直接改 `.preview` 在部分时序下（同一 tick 内连续赋值 + 表单校验触发的重渲染）
+  // 会让预览框停留在"未选择"。换一个新对象一定触发依赖，肉眼可见地即时。
+  images[slot] = { file: raw, preview: url, path: images[slot].path }
   model[slot] = url // 让必填校验通过
-  formRef.value?.validateField(slot).catch(() => undefined)
+  void formRef.value?.validateField(slot).catch(() => undefined)
 }
 
 function close(): void {
@@ -292,16 +320,13 @@ async function save(): Promise<void> {
         </el-form-item>
 
         <el-form-item label="进球方式" prop="method">
-          <el-select
+          <el-autocomplete
             v-model="model.method"
-            placeholder="选择或输入新的方式"
             class="field"
-            filterable
-            allow-create
-            default-first-option
-          >
-            <el-option v-for="item in methodOptions" :key="item" :label="item" :value="item" />
-          </el-select>
+            placeholder="选择或直接输入新的方式"
+            clearable
+            :fetch-suggestions="queryMethods"
+          />
         </el-form-item>
 
         <el-form-item label="击球力度" prop="strength_code">
@@ -368,13 +393,15 @@ async function save(): Promise<void> {
           <el-upload
             :auto-upload="false"
             :show-file-list="false"
-            accept="image/*"
+            :accept="ACCEPT_ATTR"
             :on-change="(file: UploadFile) => onPick(slot.key, file)"
           >
             <el-button>{{ images[slot.key].preview ? '重新选择' : '选择图片' }}</el-button>
           </el-upload>
 
-          <span class="image-hint">保存时自动转 WebP（约 20–30 KB）</span>
+          <span class="image-hint"
+            >支持 JPG / PNG / WebP，单张 ≤ {{ MAX_SIZE_MB }} MB，保存时自动转 WebP</span
+          >
         </div>
       </el-form-item>
     </el-form>
