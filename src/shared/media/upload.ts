@@ -14,8 +14,11 @@
 import { supabase } from '../api/client'
 
 const BUCKET = 'images'
-/** 目录前缀与历史数据一致：`balls/<uuid>.webp` */
-const DIR = 'balls'
+/**
+ * 目录前缀与历史数据一致：彩球 `balls/<uuid>.webp`、进阶 `advanced/<uuid>.webp`
+ * （旧数据就是这么分的，迁移脚本 `upload_images.py` 按表决定前缀，这里保持一致）
+ */
+export type UploadDir = 'balls' | 'advanced'
 const WEBP_QUALITY = 0.8
 
 /** 浏览器能把任意图片解出来吗 —— 解不出（比如损坏文件）就在这里失败 */
@@ -44,10 +47,12 @@ async function toWebp(file: File): Promise<Blob> {
  * 上传一张图，返回 Storage 里的相对路径（如 `balls/xxx.webp`）
  *
  * 库里存的就是这个相对路径，读的时候由 `imageUrl()` 拼成完整 URL。
+ *
+ * @param dir 目录前缀：彩球用 `balls`，进阶用 `advanced`
  */
-export async function uploadImage(file: File): Promise<string> {
+export async function uploadImage(file: File, dir: UploadDir = 'balls'): Promise<string> {
   const blob = await toWebp(file)
-  const path = `${DIR}/${crypto.randomUUID()}.webp`
+  const path = `${dir}/${crypto.randomUUID()}.webp`
 
   const { error } = await supabase.storage.from(BUCKET).upload(path, blob, {
     contentType: 'image/webp',
