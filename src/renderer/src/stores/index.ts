@@ -11,6 +11,11 @@ import { useUiStore } from './ui'
 
 export { useAuthStore, useDatasetStore, useThemeStore, useUiStore }
 
+/** 常用行类型一并从这里出，组件不用再深到 db.ts / shared */
+export type { Advanced, Ball, DictRow, SyncState } from './dataset'
+export type { AuthStatus } from './auth'
+export type { Profile, RoleCode } from '@shared/auth'
+
 /**
  * 应用启动后调一次（必须 `app.use(pinia)` 之后）
  *

@@ -1,17 +1,239 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import PagePlaceholder from '@renderer/components/PagePlaceholder.vue'
+/**
+ * 彩球列表页（核心页）
+ *
+ * 交互照旧版 WPF 的 ColorBallView：
+ *   1. 进页面默认选中「左上袋」，**不自动查询**（旧版列表是空的）
+ *   2. 换袋口 → 清空已选进袋方式 + 清空结果，重算该袋口下的进袋方式
+ *   3. 选进袋方式 → 点「查询」→ 按 袋口 + 进袋方式 过滤
+ *
+ * 数据来自本地快照（`useDatasetStore().ballsByColor`），断网也能查。
+ */
+import { computed, ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
+import BallCard from '@renderer/components/BallCard.vue'
 import { BALL_LABELS } from '@renderer/navigation/menu'
+import { useAuthStore, useDatasetStore } from '@renderer/stores'
 
 const props = defineProps<{ color: string }>()
 
-const label = computed(() => BALL_LABELS[props.color] ?? props.color)
+const dataset = useDatasetStore()
+const auth = useAuthStore()
+
+/** 字典还没同步下来时的兜底（顺序与旧版 6 个 radio 一致） */
+const POCKET_FALLBACK = [
+  { code: 'top_left', name: '左上袋' },
+  { code: 'bottom_left', name: '左下袋' },
+  { code: 'top_middle', name: '上中袋' },
+  { code: 'bottom_middle', name: '下中袋' },
+  { code: 'top_right', name: '右上袋' },
+  { code: 'bottom_right', name: '右下袋' }
+]
+
+const pockets = computed(() => {
+  const rows = dataset.dict
+    .filter((row) => row.kind === 'pocket')
+    .sort((a, b) => a.sort - b.sort)
+    .map((row) => ({ code: row.code, name: row.name_zh }))
+  return rows.length > 0 ? rows : POCKET_FALLBACK
+})
+
+const title = computed(() => BALL_LABELS[props.color] ?? dataset.dictName('color', props.color))
+
+/** 当前彩球的全部打法（未筛选） */
+const colorBalls = computed(() => dataset.ballsByColor.get(props.color) ?? [])
+
+const pocket = ref(pockets.value[0]?.code ?? 'top_left')
+const method = ref('')
+
+/** 点过「查询」之后的筛选条件；null = 还没查过，列表为空（与旧版一致） */
+const submitted = ref<{ pocket: string; method: string } | null>(null)
+
+/** 该袋口下出现过的进袋方式（去重，空值剔除） */
+const methods = computed(() => {
+  const seen = new Set<string>()
+  for (const ball of colorBalls.value) {
+    if (ball.pocket_code === pocket.value && ball.method) seen.add(ball.method)
+  }
+  return [...seen].sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))
+})
+
+const results = computed(() => {
+  const query = submitted.value
+  if (!query) return []
+  return colorBalls.value.filter(
+    (ball) => ball.pocket_code === query.pocket && ball.method === query.method
+  )
+})
+
+/** 换袋口：清空进袋方式与结果（旧版行为） */
+watch(pocket, () => {
+  method.value = ''
+  submitted.value = null
+})
+
+/** 换彩球（同一个组件复用）：整体重置 */
+watch(
+  () => props.color,
+  () => {
+    pocket.value = pockets.value[0]?.code ?? 'top_left'
+    method.value = ''
+    submitted.value = null
+  }
+)
+
+function search(): void {
+  if (!method.value) {
+    ElMessage.warning('请先选择进袋方式')
+    return
+  }
+  submitted.value = { pocket: pocket.value, method: method.value }
+}
+
+function onCreate(): void {
+  ElMessage.info('新增表单在 T3.3 实现')
+}
 </script>
 
 <template>
-  <PagePlaceholder
-    :title="`${label} · 彩球打法`"
-    description="6 个袋口 radio + 进袋方式下拉（联动）+ 卡片列表（力度大字 / 作者 / 时间 / 方法 / 高低杆 / 备注 / 3 张图 + 大图预览）。"
-    task="T3.2 · 彩球列表页"
-  />
+  <section class="ball-view">
+    <header class="ball-view__head">
+      <div>
+        <h1 class="ball-view__title">{{ title }}</h1>
+        <p class="ball-view__sub">共 {{ colorBalls.length }} 条打法 · 按袋口与进袋方式筛选</p>
+      </div>
+      <el-button v-if="auth.canWrite" type="primary" @click="onCreate">新增</el-button>
+    </header>
+
+    <!-- 筛选区 -->
+    <div class="filter card">
+      <el-radio-group v-model="pocket" class="filter__pockets">
+        <el-radio-button v-for="item in pockets" :key="item.code" :value="item.code">
+          {{ item.name }}
+        </el-radio-button>
+      </el-radio-group>
+
+      <div class="filter__row">
+        <el-select
+          v-model="method"
+          class="filter__select"
+          placeholder="选择进袋方式"
+          filterable
+          clearable
+        >
+          <el-option v-for="item in methods" :key="item" :label="item" :value="item" />
+        </el-select>
+
+        <el-button type="primary" :disabled="!method" @click="search">查询</el-button>
+
+        <span v-if="!methods.length" class="filter__hint">
+          该袋口下暂无进袋方式，换一个袋口看看
+        </span>
+      </div>
+    </div>
+
+    <!-- 结果区 -->
+    <div v-if="!dataset.isReady" class="state">
+      <el-skeleton :rows="3" animated />
+      <p class="state__text">数据还没同步完成，稍等一下…</p>
+    </div>
+
+    <p v-else-if="!submitted" class="state__text state__text--center">选择进袋方式后点「查询」</p>
+
+    <p v-else-if="results.length === 0" class="state__text state__text--center">
+      该袋口下没有这个进袋方式的记录
+    </p>
+
+    <div v-else class="ball-view__grid">
+      <BallCard
+        v-for="ball in results"
+        :key="ball.id"
+        :ball="ball"
+        :strength-text="dataset.dictName('strength', ball.strength_code)"
+      />
+    </div>
+  </section>
 </template>
+
+<style scoped>
+.ball-view {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  padding: clamp(16px, 2.2vw, 28px);
+}
+
+.ball-view__head {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.ball-view__title {
+  margin: 0;
+  font-size: clamp(1.25rem, 1.6vw, 1.5rem);
+  font-weight: 500;
+  color: var(--text-1);
+}
+
+.ball-view__sub {
+  margin: 0.25rem 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-2);
+}
+
+.filter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+}
+
+.filter__pockets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.filter__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.filter__select {
+  width: 18rem;
+  max-width: 100%;
+}
+
+.filter__hint {
+  font-size: var(--font-size-sm);
+  color: var(--text-3);
+}
+
+.ball-view__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+  gap: 0.875rem;
+  max-width: 100%;
+}
+
+.state {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.state__text {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-3);
+}
+
+.state__text--center {
+  padding: 3rem 0;
+  text-align: center;
+}
+</style>
