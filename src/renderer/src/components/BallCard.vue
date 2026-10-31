@@ -2,11 +2,16 @@
 /**
  * 彩球打法卡片（列表页用）
  *
- * 与进阶卡片同一套模式：列表只做索引 —— **预览图 + 力度 + 进袋方式 + 作者/日期**，
- * 点整张卡片进详情页看完整内容（方法 / 走位补偿 / 补充说明 / 三张图）。
+ * 字段顺序照旧版 WPF（docs/04 §5.4）：力度大字 → 作者/更新时间 →
+ * 方法 → 走位补偿（低杆/高杆）→ 补充说明 → 三张图。
  *
- * 预览图优先用击球点图（最能代表这条打法），没有就退到蓝点图、路线图。
- * 右上角 `···`（编辑/删除）是卡片内唯一的交互区，`@click.stop` 防止误跳转。
+ * 三条版式约定（用户要求）：
+ *   1. **卡片高度固定**（`height: 25rem`）—— 一屏能对齐，滚动时不会参差不齐
+ *   2. **图片区占位固定**：三个 5.25rem 方框，没图也占位（显示「无图」），不塌陷
+ *   3. **文字超长一律省略号**：每个字段按行数截断（`-webkit-line-clamp`），
+ *      不换行撑高卡片；完整内容去详情页看
+ *
+ * 点整张卡片进详情页；右上 `···`（编辑/删除）是卡片内唯一的交互区，要 `.stop`。
  */
 import { computed } from 'vue'
 import { imageUrl } from '@shared/media/url'
@@ -20,10 +25,12 @@ const props = defineProps<{
 
 const emit = defineEmits<{ (event: 'open'): void }>()
 
-const preview = computed(() => {
-  const { impact_image: impact, blue_image: blue, route_image: route } = props.ball
-  return imageUrl(impact) || imageUrl(blue) || imageUrl(route)
-})
+/** 三个图片位固定顺序，空值也占位（避免有图/无图的卡片高度不一致） */
+const images = computed(() => [
+  { kind: 'impact', label: '击球点', url: imageUrl(props.ball.impact_image) },
+  { kind: 'blue', label: '蓝点', url: imageUrl(props.ball.blue_image) },
+  { kind: 'route', label: '路线图', url: imageUrl(props.ball.route_image) }
+])
 
 const updatedText = computed(() => {
   const raw = props.ball.updated_at
@@ -45,34 +52,61 @@ const updatedText = computed(() => {
     @keydown.enter="emit('open')"
     @keydown.space.prevent="emit('open')"
   >
-    <div class="ball-card__actions" @click.stop>
-      <slot name="actions" />
-    </div>
+    <header class="ball-card__head">
+      <div class="ball-card__strength">{{ strengthText }}</div>
+      <div class="ball-card__meta">
+        <span>作者：{{ ball.updated_by || '未知' }}</span>
+        <span>更新时间：{{ updatedText }}</span>
+      </div>
+      <div class="ball-card__actions" @click.stop>
+        <slot name="actions" />
+      </div>
+    </header>
+
+    <dl class="ball-card__fields">
+      <div class="field field--sight">
+        <dt>方法：</dt>
+        <dd>{{ ball.sight || '—' }}</dd>
+      </div>
+
+      <div class="field field--group">
+        <dt>走位补偿：</dt>
+        <dd>
+          <p><span class="field__sub">低杆走位：</span>{{ ball.low_comp || '—' }}</p>
+          <p><span class="field__sub">高杆走位：</span>{{ ball.high_comp || '—' }}</p>
+        </dd>
+      </div>
+
+      <div class="field field--remark">
+        <dt>补充说明：</dt>
+        <dd>{{ ball.remark || '—' }}</dd>
+      </div>
+    </dl>
 
     <div class="ball-card__media">
-      <img v-if="preview" :src="preview" alt="击球点示意图" loading="lazy" />
-      <span v-else class="ball-card__empty">无图片</span>
+      <div
+        v-for="item in images"
+        :key="item.kind"
+        class="thumb"
+        :class="{ 'thumb--empty': !item.url }"
+        :title="item.label"
+      >
+        <img v-if="item.url" :src="item.url" :alt="item.label" loading="lazy" />
+        <span v-else class="thumb__empty">{{ item.label }}无图</span>
+      </div>
     </div>
-
-    <div class="ball-card__head">
-      <span class="ball-card__strength">{{ strengthText }}</span>
-      <span class="ball-card__method">{{ ball.method }}</span>
-    </div>
-
-    <p class="ball-card__meta">
-      <span>{{ ball.updated_by || '未知' }}</span>
-      <span>{{ updatedText }}</span>
-    </p>
   </article>
 </template>
 
 <style scoped>
 .ball-card {
-  position: relative;
+  /* 固定高度：卡片内文字按行截断，图片区固定占位，一屏排列才整齐 */
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.75rem 0.75rem 0.875rem;
+  gap: 0.75rem;
+  height: 25rem;
+  padding: 1rem 1.125rem 1.125rem;
+  overflow: hidden;
   cursor: pointer;
   transition:
     box-shadow var(--transition-fast),
@@ -86,69 +120,128 @@ const updatedText = computed(() => {
   transform: translateY(-2px);
 }
 
-.ball-card__actions {
-  position: absolute;
-  top: 0.375rem;
-  right: 0.375rem;
-  z-index: 1;
-  /* 半透明衬底，避免图片把按钮吃掉 */
-  background: color-mix(in srgb, var(--surface) 82%, transparent);
-  border-radius: var(--radius-sm);
-}
-
-.ball-card__media {
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: 9rem;
-  overflow: hidden;
-  /* 与进阶卡片一致：不加白底 */
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-}
-
-.ball-card__media img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.ball-card__empty {
-  font-size: var(--font-size-sm);
-  color: var(--text-3);
-}
-
 .ball-card__head {
-  display: flex;
-  gap: 0.625rem;
-  align-items: baseline;
-  min-width: 0;
-}
-
-/* 力度保留旧版的视觉锚点（大字 + 主题色） */
-.ball-card__strength {
+  display: grid;
   flex: none;
-  font-size: 1.375rem;
-  font-weight: 600;
-  line-height: 1.2;
-  color: var(--primary);
+  grid-template-columns: auto 1fr auto;
+  gap: 0.75rem;
+  align-items: end;
 }
 
-.ball-card__method {
-  overflow: hidden;
-  font-size: 0.9375rem;
-  color: var(--text-1);
-  white-space: nowrap;
-  text-overflow: ellipsis;
+.ball-card__strength {
+  font-size: 1.75rem; /* 旧版 30px 大字，是卡片的视觉锚点 */
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--primary);
+  letter-spacing: 0.02em;
 }
 
 .ball-card__meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 0.75rem;
-  margin: 0;
+  gap: 0.25rem 1.25rem;
   font-size: var(--font-size-sm);
   color: var(--text-2);
+}
+
+.ball-card__actions {
+  align-self: start;
+}
+
+/* 字段区吃掉剩余高度；超出的部分裁掉（每个字段自己按行数截断） */
+.ball-card__fields {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
+.field {
+  display: grid;
+  grid-template-columns: 5.5rem 1fr;
+  gap: 0.25rem;
+  font-size: 0.9375rem;
+  line-height: 1.75;
+}
+
+.field dt {
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.field dd {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+  /* 多行省略：超出按行数截断，行尾出省略号 */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+}
+
+.field--sight dd {
+  -webkit-line-clamp: 2;
+}
+
+.field--group dd {
+  -webkit-line-clamp: 2;
+}
+
+.field--remark dd {
+  -webkit-line-clamp: 2;
+}
+
+.field dd p {
+  margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.field__sub {
+  color: var(--text-1);
+}
+
+/* 图片区：三个固定方框，有图无图都占同样大小 */
+.ball-card__media {
+  display: flex;
+  flex: none;
+  gap: 0.75rem;
+  align-items: center;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.thumb {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 5.25rem;
+  height: 5.25rem;
+  padding: 0.25rem;
+  overflow: hidden;
+  /* 与详情页一致：不加白底，只留一圈边框把占位画出来 */
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.thumb--empty {
+  border-style: dashed;
+}
+
+.thumb__empty {
+  font-size: 0.75rem;
+  color: var(--text-3);
+  text-align: center;
 }
 </style>

@@ -88,37 +88,54 @@ const results = computed(() => {
   )
 })
 
-/** 换袋口：清空进袋方式与结果（旧版行为），URL 上的筛选也一起清掉 */
-watch(pocket, () => {
+/**
+ * 用户手动换袋口：清空进袋方式与结果（旧版行为），URL 上的筛选也一起清掉
+ *
+ * 用 `@change` 而不是 `watch(pocket)`：从 URL / 换彩球同步过来的袋口也会改 `pocket`，
+ * 用 watch 的话会反向把刚读进来的 query 清掉。只有真实点击才走这里。
+ */
+function onPocketChange(): void {
   method.value = ''
   submitted.value = null
   void router.replace({ query: {} })
-})
+}
 
-/** 换彩球（同一个组件复用）：整体重置 */
+/** 换彩球（同一个组件复用）：整体重置（跳到新地址时 query 自然被清掉，不用手动 replace） */
 watch(
   () => props.color,
   () => {
     pocket.value = pockets.value[0]?.code ?? 'top_left'
     method.value = ''
     submitted.value = null
-    void router.replace({ query: {} })
   }
 )
 
 /**
- * 外部导航把 query 清掉时（比如再点一次侧栏「黑球」），列表也回到"没查过"的状态
+ * URL query → 组件状态（双向同步的另一半）
  *
- * 同一个路由记录复用组件，不会重新挂载，不监听的话会出现「地址栏没条件、
- * 列表却还有结果」的错位。自己 `replace({ query: {} })` 时 submitted 已经是 null，
- * 这里不会重复触发。
+ * 同一个路由记录复用组件，不会重新挂载，所以：
+ *   - 从详情页 `back()` 回来、或直接改地址栏 → 这里把条件读回来
+ *   - 点侧栏「黑球」把 query 清掉 → 列表回到"没查过"的状态，
+ *     否则会出现「地址栏没条件、列表却还有结果」的错位
+ *
+ * 自己 `replace` 时状态已经是对的，这里重复赋值一次无副作用。
  */
 watch(
   () => [route.query.pocket, route.query.method],
   ([pocketQuery, methodQuery]) => {
-    if (!pocketQuery && !methodQuery && submitted.value) {
-      submitted.value = null
+    const nextPocket =
+      typeof pocketQuery === 'string' && pockets.value.some((item) => item.code === pocketQuery)
+        ? pocketQuery
+        : ''
+    const nextMethod = typeof methodQuery === 'string' ? methodQuery : ''
+
+    if (nextPocket) pocket.value = nextPocket
+    if (nextMethod) {
+      method.value = nextMethod
+      submitted.value = { pocket: pocket.value, method: nextMethod }
+    } else {
       method.value = ''
+      submitted.value = null
     }
   }
 )
@@ -193,7 +210,7 @@ async function onSaved(): Promise<void> {
 
     <!-- 筛选区 -->
     <div class="filter card">
-      <el-radio-group v-model="pocket" class="filter__pockets">
+      <el-radio-group v-model="pocket" class="filter__pockets" @change="onPocketChange">
         <el-radio-button v-for="item in pockets" :key="item.code" :value="item.code">
           {{ item.name }}
         </el-radio-button>
@@ -326,8 +343,8 @@ async function onSaved(): Promise<void> {
 
 .ball-view__grid {
   display: grid;
-  /* 卡片只剩「图 + 力度/进袋方式 + 作者/日期」，可以排得更密 */
-  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  /* 卡片恢复「全部内容」后需要更宽；高度固定，宽度按列自适应 */
+  grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
   gap: 0.875rem;
   max-width: 100%;
 }
