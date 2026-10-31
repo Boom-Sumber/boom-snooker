@@ -13,4 +13,12 @@ interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL?: string
   /** Supabase publishable / anon key（设计上可公开，安全边界在 RLS） */
   readonly VITE_SUPABASE_KEY?: string
+  /**
+   * 开发期自动登录用的测试账号（**只在 `npm run dev` 下生效**）
+   *
+   * 登录界面要等 T3.5，在那之前靠这两个变量让开发时自动带上会话。
+   * 生产构建里 `import.meta.env.DEV` 为 false，这段逻辑不会执行。
+   */
+  readonly VITE_DEV_LOGIN_EMAIL?: string
+  readonly VITE_DEV_LOGIN_PASSWORD?: string
 }

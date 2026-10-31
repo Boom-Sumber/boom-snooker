@@ -25,5 +25,10 @@ export type { Profile, RoleCode } from '@shared/auth'
  */
 export function bootstrapStores(): void {
   void useDatasetStore().init()
-  void useAuthStore().init()
+  void useAuthStore()
+    .init()
+    .then(() => {
+      // 开发期自动登录（T3.5 有登录界面之前的过渡手段，生产构建不执行）
+      void import('@renderer/dev/auto-login').then((module) => module.autoLoginIfConfigured())
+    })
 }

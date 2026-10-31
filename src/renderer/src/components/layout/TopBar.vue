@@ -50,6 +50,23 @@ const auth = useAuthStore()
 const { nickname, avatar } = storeToRefs(auth)
 const avatarSrc = computed(() => avatar.value || avatarBoy)
 
+/** 角色中文名（字典里只登记了 admin / viewer，另外两个手动补） */
+const ROLE_LABELS: Record<string, string> = {
+  viewer: '普通用户',
+  advanced: '高级用户',
+  admin: '管理员',
+  superadmin: '超级管理员',
+  anon: '未登录'
+}
+const roleLabel = computed(() => ROLE_LABELS[auth.role] ?? auth.role)
+
+/** 账号菜单：目前只有「登出」（登录界面与改密在 T3.5） */
+async function onAccountCommand(command: string): Promise<void> {
+  if (command !== 'logout') return
+  await auth.signOut()
+  ElMessage.success('已登出')
+}
+
 /** 待审数量：T4.3 接审核接口，0 时不显示红点 */
 const pendingCount = ref(0)
 
@@ -88,12 +105,27 @@ async function onRefresh(): Promise<void> {
         </svg>
       </button>
 
-      <el-avatar :size="40" :src="avatarSrc" class="no-drag" />
+      <el-dropdown
+        :disabled="!auth.isSignedIn"
+        trigger="click"
+        class="no-drag account"
+        @command="onAccountCommand"
+      >
+        <div class="who" :class="{ 'who--clickable': auth.isSignedIn }">
+          <el-avatar :size="40" :src="avatarSrc" />
+          <div class="who__text">
+            <span class="who__name">{{ nickname || '未登录' }}</span>
+            <span class="who__time">{{ clock }}</span>
+          </div>
+        </div>
 
-      <div class="who">
-        <span class="who__name">{{ nickname || '未登录' }}</span>
-        <span class="who__time">{{ clock }}</span>
-      </div>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item disabled>{{ nickname }} · {{ roleLabel }}</el-dropdown-item>
+            <el-dropdown-item command="logout" divided>登出</el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
     </div>
 
     <div class="topbar__right no-drag">
@@ -175,7 +207,28 @@ async function onRefresh(): Promise<void> {
   background: var(--surface-2);
 }
 
+.account {
+  min-width: 0;
+}
+
 .who {
+  display: flex;
+  flex-direction: row;
+  gap: 0.75rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.who--clickable {
+  cursor: pointer;
+  border-radius: var(--radius-md);
+}
+
+.who--clickable:hover .who__name {
+  color: var(--primary);
+}
+
+.who__text {
   display: flex;
   flex-direction: column;
   gap: 0.125rem;
