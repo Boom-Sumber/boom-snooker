@@ -77,6 +77,13 @@ export const router = createRouter({
           meta: { title: '关于' }
         },
         {
+          // 账号页：从顶栏头像菜单进（侧栏不放，旧版也是从用户区进）
+          path: 'account',
+          name: 'account',
+          component: () => import('@renderer/views/AccountView.vue'),
+          meta: { title: '账号' }
+        },
+        {
           path: ':pathMatch(.*)*',
           name: 'not-found',
           component: () => import('@renderer/views/NotFoundView.vue'),

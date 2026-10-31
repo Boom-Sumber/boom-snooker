@@ -39,6 +39,15 @@ export const CATEGORY_LABELS: Record<string, string> = {
   other: '其他系列'
 }
 
+/** 四级角色：code → 中文（与 docs/03 第 9 节的权限矩阵一致） */
+export const ROLE_LABELS: Record<string, string> = {
+  viewer: '普通用户',
+  advanced: '高级用户',
+  admin: '管理员',
+  superadmin: '超级管理员',
+  anon: '未登录'
+}
+
 export const navGroups: NavGroup[] = [
   {
     key: 'home',

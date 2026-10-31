@@ -1,11 +1,11 @@
 /**
  * 开发期自动登录（**只在 `npm run dev` 下生效**）
  *
- * 为什么需要：登录界面要等 T3.5。在那之前，新增/编辑/删除这些写操作
- * 都要登录才能测，每次手动敲 `auth.signIn()` 太麻烦。
+ * 为什么保留：T3.5 之后虽然有了登录界面，但每次 `npm run dev` 都手敲邮箱密码太烦，
+ * 尤其是改记录相关的页面时。不配 `.env.local` 里那两个变量就完全不生效。
  *
  * 账号来源：`.env.local` 的 `VITE_DEV_LOGIN_EMAIL` / `VITE_DEV_LOGIN_PASSWORD`
- * （文件不入库）。不配这两个变量就完全不生效。
+ * （文件不入库）。
  *
  * 安全边界：
  *   - `import.meta.env.DEV` 在 `npm run build` 时是 `false`，整段逻辑不会执行；

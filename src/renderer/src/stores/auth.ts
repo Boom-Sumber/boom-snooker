@@ -12,11 +12,13 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type { Session } from '@supabase/supabase-js'
 import {
+  changePassword as apiChangePassword,
   getMyProfile,
   getSession,
   onAuthStateChange,
   signIn as apiSignIn,
   signOut as apiSignOut,
+  type PasswordResult,
   type Profile,
   type RoleCode,
   type SignInResult
@@ -115,6 +117,18 @@ export const useAuthStore = defineStore('auth', () => {
     status.value = 'signedOut'
   }
 
+  /**
+   * 改密：成功即强制登出（旧版逻辑，`docs/04` §5.7）
+   *
+   * 登出放在这里而不是组件里，是为了保证"改成功就一定登出" ——
+   * 密码变了，旧 token 虽然还有效，但让用户用新密码重新登录一次更稳妥。
+   */
+  async function changePassword(oldPassword: string, newPassword: string): Promise<PasswordResult> {
+    const result = await apiChangePassword(oldPassword, newPassword)
+    if (result.ok) await signOut()
+    return result
+  }
+
   /** 组件卸载 / HMR 时取消订阅 */
   function dispose(): void {
     unsubscribe?.()
@@ -138,6 +152,7 @@ export const useAuthStore = defineStore('auth', () => {
     loadProfile,
     signIn,
     signOut,
+    changePassword,
     dispose
   }
 })

@@ -111,6 +111,35 @@ export async function getMyRole(): Promise<RoleCode | 'anon'> {
 }
 
 /**
+ * 改密：先用旧密码重新登录校验，再 `updateUser`
+ *
+ * ⚠️ Supabase 的 `updateUser({ password })` **不校验旧密码** —— 只要当前会话有效就能改。
+ * 所以必须自己用 `signInWithPassword` 拿旧密码验一次，否则表单里的「旧密码」形同虚设。
+ * 重新登录会刷新一次会话（token 换新），对后续调用没有副作用。
+ */
+export type PasswordResult = { ok: true } | { ok: false; message: string }
+
+export async function changePassword(
+  oldPassword: string,
+  newPassword: string
+): Promise<PasswordResult> {
+  const user = await getCurrentUser()
+  const email = user?.email
+  if (!email) return { ok: false, message: '当前账号没有邮箱，无法修改密码' }
+
+  const { error: verifyError } = await supabase.auth.signInWithPassword({
+    email,
+    password: oldPassword
+  })
+  if (verifyError) return { ok: false, message: '旧密码不对' }
+
+  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  if (error) return { ok: false, message: translateAuthError(error) }
+
+  return { ok: true }
+}
+
+/**
  * 订阅会话变化（登录 / 登出 / token 刷新）
  *
  * 返回取消订阅函数，组件 `onUnmounted` 里调。

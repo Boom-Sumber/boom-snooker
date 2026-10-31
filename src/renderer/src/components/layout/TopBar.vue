@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import AppIcon from '@renderer/components/AppIcon.vue'
+import LoginDialog from '@renderer/components/LoginDialog.vue'
+import ChangePasswordDialog from '@renderer/components/ChangePasswordDialog.vue'
 import { iconSize, type IconName } from '@renderer/icons'
+import { ROLE_LABELS } from '@renderer/navigation/menu'
 import avatarBoy from '@renderer/assets/avatars/avatar-boy.png'
 import { useAuthStore, useDatasetStore, useThemeStore } from '@renderer/stores'
 import WindowControls from './WindowControls.vue'
@@ -47,24 +51,29 @@ function toggleTheme(): void {
 
 /** 头像与昵称：登录后跟着 profile 走，未登录显示占位 */
 const auth = useAuthStore()
+const router = useRouter()
 const { nickname, avatar } = storeToRefs(auth)
 const avatarSrc = computed(() => avatar.value || avatarBoy)
 
-/** 角色中文名（字典里只登记了 admin / viewer，另外两个手动补） */
-const ROLE_LABELS: Record<string, string> = {
-  viewer: '普通用户',
-  advanced: '高级用户',
-  admin: '管理员',
-  superadmin: '超级管理员',
-  anon: '未登录'
-}
 const roleLabel = computed(() => ROLE_LABELS[auth.role] ?? auth.role)
 
-/** 账号菜单：目前只有「登出」（登录界面与改密在 T3.5） */
+/** 登录 / 改密对话框（未登录点头像直接开登录） */
+const loginVisible = ref(false)
+const passwordVisible = ref(false)
+
 async function onAccountCommand(command: string): Promise<void> {
-  if (command !== 'logout') return
-  await auth.signOut()
-  ElMessage.success('已登出')
+  if (command === 'account') {
+    await router.push('/account')
+    return
+  }
+  if (command === 'password') {
+    passwordVisible.value = true
+    return
+  }
+  if (command === 'logout') {
+    await auth.signOut()
+    ElMessage.success('已登出')
+  }
 }
 
 /** 待审数量：T4.3 接审核接口，0 时不显示红点 */
@@ -106,12 +115,12 @@ async function onRefresh(): Promise<void> {
       </button>
 
       <el-dropdown
-        :disabled="!auth.isSignedIn"
+        v-if="auth.isSignedIn"
         trigger="click"
         class="no-drag account"
         @command="onAccountCommand"
       >
-        <div class="who" :class="{ 'who--clickable': auth.isSignedIn }">
+        <div class="who who--clickable">
           <el-avatar :size="40" :src="avatarSrc" />
           <div class="who__text">
             <span class="who__name">{{ nickname || '未登录' }}</span>
@@ -122,10 +131,27 @@ async function onRefresh(): Promise<void> {
         <template #dropdown>
           <el-dropdown-menu>
             <el-dropdown-item disabled>{{ nickname }} · {{ roleLabel }}</el-dropdown-item>
+            <el-dropdown-item command="account" divided>账号</el-dropdown-item>
+            <el-dropdown-item command="password">修改密码</el-dropdown-item>
             <el-dropdown-item command="logout" divided>登出</el-dropdown-item>
           </el-dropdown-menu>
         </template>
       </el-dropdown>
+
+      <!-- 未登录：点整块头像区直接开登录对话框（旧版也是点"登录"按钮） -->
+      <button
+        v-else
+        class="who who--clickable no-drag"
+        type="button"
+        title="点击登录"
+        @click="loginVisible = true"
+      >
+        <el-avatar :size="40" :src="avatarSrc" />
+        <div class="who__text">
+          <span class="who__name">未登录</span>
+          <span class="who__time">{{ clock }}</span>
+        </div>
+      </button>
     </div>
 
     <div class="topbar__right no-drag">
@@ -153,6 +179,9 @@ async function onRefresh(): Promise<void> {
       <WindowControls />
     </div>
   </header>
+
+  <LoginDialog v-model:visible="loginVisible" />
+  <ChangePasswordDialog v-model:visible="passwordVisible" />
 </template>
 
 <style scoped>
@@ -222,6 +251,17 @@ async function onRefresh(): Promise<void> {
 .who--clickable {
   cursor: pointer;
   border-radius: var(--radius-md);
+}
+
+/* 未登录时 .who 是 <button>：清掉默认样式，保持和登录后一模一样的排版 */
+button.who {
+  padding: 0.25rem;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
 }
 
 .who--clickable:hover .who__name {
