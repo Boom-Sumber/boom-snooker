@@ -74,5 +74,16 @@ export const navGroups: NavGroup[] = [
 
 /** 找出某个路径属于哪个分组（用于自动展开 + 高亮） */
 export function findGroupKeyByPath(path: string): string | undefined {
-  return navGroups.find((group) => group.items.some((item) => item.path === path))?.key
+  return navGroups.find((group) => group.items.some((item) => matchesPath(path, item.path)))?.key
+}
+
+/**
+ * 路径是否命中某个菜单项
+ *
+ * 详情页（`/advanced/break/<id>`）也要让对应菜单项保持高亮、所在分组保持展开，
+ * 所以除了完全相等，还接受「菜单路径 + `/`」前缀。
+ * 不能用裸 `startsWith(path)` —— `/advanced/break` 会误命中 `/advanced/breakfast`。
+ */
+export function matchesPath(routePath: string, itemPath: string): boolean {
+  return routePath === itemPath || routePath.startsWith(`${itemPath}/`)
 }

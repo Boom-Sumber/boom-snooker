@@ -55,6 +55,14 @@ export const router = createRouter({
           meta: { title: '进阶' }
         },
         {
+          // 详情页：列表卡片点进来，看完整内容（以后的评论区也在这页）
+          path: 'advanced/:category/:id',
+          name: 'advanced-detail',
+          props: true,
+          component: () => import('@renderer/views/AdvancedDetailView.vue'),
+          meta: { title: '进阶详情' }
+        },
+        {
           path: 'about',
           name: 'about',
           component: () => import('@renderer/views/AboutView.vue'),

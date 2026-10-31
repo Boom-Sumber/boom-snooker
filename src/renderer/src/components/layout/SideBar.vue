@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { findGroupKeyByPath, navGroups, type NavGroup } from '@renderer/navigation/menu'
+import {
+  findGroupKeyByPath,
+  matchesPath,
+  navGroups,
+  type NavGroup
+} from '@renderer/navigation/menu'
 import AppIcon from '@renderer/components/AppIcon.vue'
 import { iconSize } from '@renderer/icons'
 
@@ -94,8 +99,9 @@ function onGroupClick(group: NavGroup): void {
   toggleGroup(group.key)
 }
 
+/** 详情页（`/advanced/break/<id>`）也要让所属系列保持高亮 */
 function isActive(path: string): boolean {
-  return route.path === path
+  return matchesPath(route.path, path)
 }
 </script>
 

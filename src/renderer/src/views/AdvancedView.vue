@@ -66,6 +66,11 @@ function onCreate(): void {
   formVisible.value = true
 }
 
+/** 点卡片进详情页（正文、大图、以后的评论区都在那边） */
+function openDetail(item: Advanced): void {
+  void router.push(`/advanced/${props.category}/${item.id}`)
+}
+
 function onEdit(item: Advanced): void {
   editingItem.value = item
   formVisible.value = true
@@ -109,7 +114,7 @@ watch(
     <header class="advanced-view__head">
       <div>
         <h1 class="advanced-view__title">{{ title }}</h1>
-        <p class="advanced-view__sub">共 {{ items.length }} 条 · 单图 + 描述 + 注解</p>
+        <p class="advanced-view__sub">共 {{ items.length }} 条 · 点卡片查看完整内容</p>
       </div>
       <el-button v-if="auth.canWrite" type="primary" @click="onCreate">新增</el-button>
     </header>
@@ -132,7 +137,7 @@ watch(
     <p v-else-if="items.length === 0" class="state__text state__text--center">这个系列还没有内容</p>
 
     <div v-else class="advanced-view__grid">
-      <AdvancedCard v-for="item in items" :key="item.id" :item="item">
+      <AdvancedCard v-for="item in items" :key="item.id" :item="item" @open="openDetail(item)">
         <template #actions>
           <el-dropdown
             v-if="canManage(item)"
@@ -206,7 +211,8 @@ watch(
 
 .advanced-view__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr));
+  /* 卡片只剩「图 + 标题 + 作者/日期」，可以排得更密 */
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
   gap: 0.875rem;
   max-width: 100%;
 }
