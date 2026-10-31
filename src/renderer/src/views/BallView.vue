@@ -10,10 +10,12 @@
  * 数据来自本地快照（`useDatasetStore().ballsByColor`），断网也能查。
  */
 import { computed, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import BallCard from '@renderer/components/BallCard.vue'
+import BallFormDialog from '@renderer/components/BallFormDialog.vue'
 import { BALL_LABELS } from '@renderer/navigation/menu'
-import { useAuthStore, useDatasetStore } from '@renderer/stores'
+import { useAuthStore, useDatasetStore, type Ball } from '@renderer/stores'
+import { deleteBall } from '@shared/api/balls'
 
 const props = defineProps<{ color: string }>()
 
@@ -91,7 +93,46 @@ function search(): void {
 }
 
 function onCreate(): void {
-  ElMessage.info('新增表单在 T3.3 实现')
+  editingBall.value = null
+  formVisible.value = true
+}
+
+/** 表单对话框 */
+const formVisible = ref(false)
+const editingBall = ref<Ball | null>(null)
+
+/** 只有作者本人能改/删（服务端 RPC 也是这么卡的，管理员也不行） */
+function canManage(ball: Ball): boolean {
+  return auth.canWrite && ball.owner_id !== null && ball.owner_id === auth.user?.id
+}
+
+function onEdit(ball: Ball): void {
+  editingBall.value = ball
+  formVisible.value = true
+}
+
+async function onDelete(ball: Ball): Promise<void> {
+  const confirmed = await ElMessageBox.confirm(
+    '删除后该条打法会从列表里消失（服务端是软删除）。确定删除吗？',
+    '删除确认',
+    { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
+  ).catch(() => false)
+  if (!confirmed) return
+
+  const result = await deleteBall(ball.id, dataset.version)
+  if (!result.ok) {
+    if (result.conflict) void dataset.sync(true)
+    ElMessage.error(result.message ?? '删除失败')
+    return
+  }
+
+  ElMessage.success('已删除')
+  await dataset.sync(true)
+}
+
+/** 保存成功后刷新快照：记录被写库 → dataset_version 变了 → 拉新快照 */
+async function onSaved(): Promise<void> {
+  await dataset.sync(true)
 }
 </script>
 
@@ -150,8 +191,32 @@ function onCreate(): void {
         :key="ball.id"
         :ball="ball"
         :strength-text="dataset.dictName('strength', ball.strength_code)"
-      />
+      >
+        <template #actions>
+          <el-dropdown
+            v-if="canManage(ball)"
+            trigger="click"
+            @command="(command: string) => (command === 'edit' ? onEdit(ball) : onDelete(ball))"
+          >
+            <el-button size="small" text title="更多操作">···</el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="edit">编辑</el-dropdown-item>
+                <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </template>
+      </BallCard>
     </div>
+
+    <BallFormDialog
+      v-model:visible="formVisible"
+      :ball="editingBall"
+      :default-color="color"
+      :default-pocket="pocket"
+      @saved="onSaved"
+    />
   </section>
 </template>
 
