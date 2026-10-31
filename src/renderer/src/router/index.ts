@@ -48,6 +48,14 @@ export const router = createRouter({
           meta: { title: '彩球' }
         },
         {
+          // 详情页：列表卡片点进来，看完整打法（以后的评论区也在这页）
+          path: 'balls/:color/:id',
+          name: 'ball-detail',
+          props: true,
+          component: () => import('@renderer/views/BallDetailView.vue'),
+          meta: { title: '彩球详情' }
+        },
+        {
           path: 'advanced/:category',
           name: 'advanced',
           props: true,

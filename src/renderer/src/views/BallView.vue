@@ -10,6 +10,7 @@
  * 数据来自本地快照（`useDatasetStore().ballsByColor`），断网也能查。
  */
 import { computed, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import BallCard from '@renderer/components/BallCard.vue'
 import BallFormDialog from '@renderer/components/BallFormDialog.vue'
@@ -19,6 +20,8 @@ import { deleteBall } from '@shared/api/balls'
 
 const props = defineProps<{ color: string }>()
 
+const route = useRoute()
+const router = useRouter()
 const dataset = useDatasetStore()
 const auth = useAuthStore()
 
@@ -45,11 +48,28 @@ const title = computed(() => BALL_LABELS[props.color] ?? dataset.dictName('color
 /** 当前彩球的全部打法（未筛选） */
 const colorBalls = computed(() => dataset.ballsByColor.get(props.color) ?? [])
 
-const pocket = ref(pockets.value[0]?.code ?? 'top_left')
-const method = ref('')
+/**
+ * 筛选状态写进 URL query（`?pocket=top_left&method=xxx`）
+ *
+ * 拆出详情页之后，列表页会**重新挂载**：不写 query 的话，从详情页返回时
+ * 袋口回到默认、结果为空，用户得重查一遍。写进 URL 后：
+ *   - 详情页 `router.back()` 回来，筛选条件原样还原
+ *   - 刷新 / 直接打开这个地址也能看到同样的结果
+ */
+const queryPocket = typeof route.query.pocket === 'string' ? route.query.pocket : ''
+const queryMethod = typeof route.query.method === 'string' ? route.query.method : ''
+
+const pocket = ref(
+  queryPocket && pockets.value.some((item) => item.code === queryPocket)
+    ? queryPocket
+    : (pockets.value[0]?.code ?? 'top_left')
+)
+const method = ref(queryMethod)
 
 /** 点过「查询」之后的筛选条件；null = 还没查过，列表为空（与旧版一致） */
-const submitted = ref<{ pocket: string; method: string } | null>(null)
+const submitted = ref<{ pocket: string; method: string } | null>(
+  queryMethod ? { pocket: pocket.value, method: queryMethod } : null
+)
 
 /** 该袋口下出现过的进袋方式（去重，空值剔除） */
 const methods = computed(() => {
@@ -68,10 +88,11 @@ const results = computed(() => {
   )
 })
 
-/** 换袋口：清空进袋方式与结果（旧版行为） */
+/** 换袋口：清空进袋方式与结果（旧版行为），URL 上的筛选也一起清掉 */
 watch(pocket, () => {
   method.value = ''
   submitted.value = null
+  void router.replace({ query: {} })
 })
 
 /** 换彩球（同一个组件复用）：整体重置 */
@@ -81,6 +102,24 @@ watch(
     pocket.value = pockets.value[0]?.code ?? 'top_left'
     method.value = ''
     submitted.value = null
+    void router.replace({ query: {} })
+  }
+)
+
+/**
+ * 外部导航把 query 清掉时（比如再点一次侧栏「黑球」），列表也回到"没查过"的状态
+ *
+ * 同一个路由记录复用组件，不会重新挂载，不监听的话会出现「地址栏没条件、
+ * 列表却还有结果」的错位。自己 `replace({ query: {} })` 时 submitted 已经是 null，
+ * 这里不会重复触发。
+ */
+watch(
+  () => [route.query.pocket, route.query.method],
+  ([pocketQuery, methodQuery]) => {
+    if (!pocketQuery && !methodQuery && submitted.value) {
+      submitted.value = null
+      method.value = ''
+    }
   }
 )
 
@@ -90,11 +129,17 @@ function search(): void {
     return
   }
   submitted.value = { pocket: pocket.value, method: method.value }
+  void router.replace({ query: { pocket: pocket.value, method: method.value } })
 }
 
 function onCreate(): void {
   editingBall.value = null
   formVisible.value = true
+}
+
+/** 点卡片进详情页（方法 / 走位补偿 / 补充说明 / 三张图都在那边） */
+function openDetail(ball: Ball): void {
+  void router.push(`/balls/${props.color}/${ball.id}`)
 }
 
 /** 表单对话框 */
@@ -191,6 +236,7 @@ async function onSaved(): Promise<void> {
         :key="ball.id"
         :ball="ball"
         :strength-text="dataset.dictName('strength', ball.strength_code)"
+        @open="openDetail(ball)"
       >
         <template #actions>
           <el-dropdown
@@ -280,7 +326,8 @@ async function onSaved(): Promise<void> {
 
 .ball-view__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+  /* 卡片只剩「图 + 力度/进袋方式 + 作者/日期」，可以排得更密 */
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
   gap: 0.875rem;
   max-width: 100%;
 }

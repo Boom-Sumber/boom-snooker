@@ -13,6 +13,7 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElImageViewer, ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowLeftBold } from '@element-plus/icons-vue'
 import AdvancedFormDialog from '@renderer/components/AdvancedFormDialog.vue'
 import { CATEGORY_LABELS } from '@renderer/navigation/menu'
 import { useAuthStore, useDatasetStore } from '@renderer/stores'
@@ -88,7 +89,12 @@ async function onSaved(): Promise<void> {
 <template>
   <section class="detail">
     <header class="detail__bar">
-      <el-button text class="detail__back" @click="goBack">← 返回{{ categoryName }}</el-button>
+      <el-button text class="detail__back" @click="goBack">
+        <span class="detail__back-inner">
+          <el-icon><ArrowLeftBold /></el-icon>
+          <span>返回{{ categoryName }}</span>
+        </span>
+      </el-button>
 
       <div v-if="canManage" class="detail__actions">
         <el-button @click="formVisible = true">编辑</el-button>
@@ -174,6 +180,17 @@ async function onSaved(): Promise<void> {
   color: var(--text-2);
 }
 
+/* 图标与文字之间留出 0.5rem，比 EP 默认的 6px 松一点 */
+.detail__back-inner {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.detail__back-inner .el-icon {
+  font-size: 1rem;
+}
+
 .detail__actions {
   display: flex;
   gap: 0.5rem;
@@ -212,12 +229,12 @@ async function onSaved(): Promise<void> {
   display: grid;
   place-items: center;
   width: 100%;
-  max-height: 60vh;
-  padding: 0.5rem;
+  padding: 0;
   overflow: hidden;
   cursor: zoom-in;
-  background: var(--image-frame-bg);
-  border: 1px solid var(--border);
+  /* 不要白色底衬：暗色主题下一大块白很突兀，图本身自带背景就够 */
+  background: transparent;
+  border: 0;
   border-radius: var(--radius-md);
 }
 
@@ -227,14 +244,18 @@ async function onSaved(): Promise<void> {
 
 .detail__media img {
   max-width: 100%;
-  max-height: calc(60vh - 1rem);
+  max-height: 60vh;
   object-fit: contain;
 }
 
 .detail__empty {
+  width: 100%;
   padding: 2rem 0;
   font-size: var(--font-size-sm);
   color: var(--text-3);
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
 }
 
 .detail__fields {

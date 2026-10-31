@@ -92,7 +92,8 @@ const updatedText = computed(() => {
   /* 预览图统一高度，卡片高度整齐；contain 不裁切 */
   height: 9rem;
   overflow: hidden;
-  background: var(--image-frame-bg);
+  /* 与详情页一致：不加白底，暗色主题下不留白块 */
+  background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
 }
