@@ -41,6 +41,9 @@ function translateAuthError(error: { code?: string; message?: string; status?: n
   const message = error.message ?? ''
   if (message.includes('Invalid login credentials')) return '邮箱或密码不对'
   if (message.includes('Email not confirmed')) return '邮箱还没确认，请先点邮件里的链接'
+  // D27：邀请码校验失败由 handle_new_user 抛异常，GoTrue 会把 token 原样透出
+  if (message.includes('INVITE_CODE_REQUIRED')) return '请填写邀请码'
+  if (message.includes('INVITE_CODE_INVALID')) return '邀请码无效或已停用，找邀请你的人确认'
   if (message.includes('Failed to fetch') || message.includes('fetch failed')) {
     return '连不上服务器，检查一下网络'
   }
@@ -61,16 +64,18 @@ export async function signIn(email: string, password: string): Promise<SignInRes
 }
 
 /**
- * 注册（D13：开放注册 + 关闭邮箱确认，成功即登录）
+ * 注册（D27 邀请制 + 关闭邮箱确认，成功即登录）
  *
- * 昵称与性别通过 `options.data` 塞进 `raw_user_meta_data`，
- * 由数据库触发器 `handle_new_user` 写进 `profiles`（migration 019）。
- * 不传昵称时触发器退回邮箱前缀。
+ * 邀请码 / 昵称 / 性别通过 `options.data` 塞进 `raw_user_meta_data`，
+ * 由数据库触发器 `handle_new_user` 校验邀请码并写进 `profiles`（migration 020）。
+ *
+ * ⚠️ 邀请码只传 `invite_code`，**不要传 invited_by / role** ——
+ * 触发器只信 code，传了也会被忽略（防客户端伪造归属）。
  */
 export async function signUp(
   email: string,
   password: string,
-  profile?: { nickname?: string; gender?: Gender }
+  profile?: { nickname?: string; gender?: Gender; inviteCode?: string }
 ): Promise<SignInResult> {
   const { data, error } = await supabase.auth.signUp({
     email: email.trim(),
@@ -78,7 +83,8 @@ export async function signUp(
     options: {
       data: {
         nickname: profile?.nickname?.trim() || undefined,
-        gender: profile?.gender
+        gender: profile?.gender,
+        invite_code: profile?.inviteCode?.trim().toUpperCase() || undefined
       }
     }
   })

@@ -118,18 +118,24 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
-   * 注册（D13 开放注册，邮箱确认已关闭 → 注册即登录）
+   * 注册（D27 邀请制，邮箱确认已关闭 → 注册即登录）
    *
-   * 昵称与性别随 `signUp` 的 metadata 一起提交，由数据库触发器写进 profiles。
+   * 邀请码 / 昵称 / 性别随 `signUp` 的 metadata 一起提交，
+   * 由 `handle_new_user` 校验邀请码并写进 profiles（migration 020）。
    */
   async function signUp(
     email: string,
     password: string,
     nickname: string,
-    genderCode: Gender
+    genderCode: Gender,
+    inviteCode: string
   ): Promise<SignInResult> {
     errorMessage.value = ''
-    const result = await apiSignUp(email, password, { nickname, gender: genderCode })
+    const result = await apiSignUp(email, password, {
+      nickname,
+      gender: genderCode,
+      inviteCode
+    })
     if (!result.ok) {
       errorMessage.value = result.message
       return result

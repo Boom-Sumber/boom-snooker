@@ -3,8 +3,7 @@
  * 登录对话框
  *
  * 用**邮箱 + 密码**（Supabase Auth 的账号体系，旧版是"用户名 + 密码"）。
- * 不提供注册入口：D13 虽然是开放注册，但用户规模是内部圈子，
- * 账号由管理员在 Supabase 后台开（`docs/01` 阶段 0 的记录）。
+ * 注册入口在底部：D27 起是**邀请制**，必须填有效邀请码（由管理员发放）。
  *
  * 登录成功后只做两件事：刷新 auth store 的 profile、关窗。
  */
@@ -107,7 +106,7 @@ async function submit(): Promise<void> {
     <template #footer>
       <div class="footer">
         <el-button text type="primary" class="footer__register" @click="registerVisible = true">
-          注册新账号
+          使用邀请码注册
         </el-button>
         <div class="footer__actions">
           <el-button :disabled="loading" @click="close">取消</el-button>
