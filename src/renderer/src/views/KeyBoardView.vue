@@ -2,47 +2,55 @@
 /**
  * 小键盘设置（T3.7）
  *
- * 内容就是一组步骤截图，按系统版本分两套（Win10 / Win7）。
+ * 内容完全对应旧版 `Views/KeyBoardView.xaml`：两套系统、各 5 / 3 步，
+ * 每步一句说明 + 一张截图。截图已从旧项目拷到 `assets/keyboard/<system>/`。
  *
- * 截图**不写死**在代码里：用 `import.meta.glob` 扫 `assets/keyboard/`，
- * 命名规则见那个目录的 README —— 以后补图 / 换图只要丢文件进去，不用改代码。
- * 目录为空时显示提示，不会白屏。
+ * 图片用 `import.meta.glob` 收集，按 `N.png` 的约定对应步骤：
+ *   · 以后换图只要同名覆盖，不用改代码
+ *   · 某张图缺失时该步显示「截图待补」，而不是整步消失（步骤数是固定的）
  */
 import { computed, ref } from 'vue'
+import { KEYBOARD_GROUPS, type KeyboardSystem } from '@renderer/content/keyboard'
 
-type SystemKey = 'win10' | 'win7'
+const current = ref<KeyboardSystem>('win10')
 
-const SYSTEMS: { value: SystemKey; label: string }[] = [
-  { value: 'win10', label: 'Win10 / Win11' },
-  { value: 'win7', label: 'Win7' }
-]
-
-const current = ref<SystemKey>('win10')
-
-/** 目录里的所有图片（Vite 在构建时静态收集，运行时只是查表） */
-const modules = import.meta.glob<string>('../assets/keyboard/*.{png,jpg,jpeg,webp}', {
+/** 目录里的所有截图：key 形如 '../assets/keyboard/win10/1.png' */
+const modules = import.meta.glob<string>('../assets/keyboard/*/*.{png,jpg,jpeg,webp}', {
   eager: true,
   import: 'default'
 })
 
-/** 按 `win10-1.png` 这种命名分组，并按数字排序 */
-const images = computed(() => {
-  const groups: Record<SystemKey, { src: string; index: number }[]> = { win10: [], win7: [] }
-
+/** system/index → 图片地址 */
+const imageMap = computed(() => {
+  const map = new Map<string, string>()
   for (const [path, src] of Object.entries(modules)) {
-    const file = path.split('/').pop() ?? ''
-    const match = file.match(/^(win10|win7)-(\d+)\./i)
+    const match = path.match(/keyboard\/(win10|win7)\/(\d+)\./i)
     if (!match) continue
-    groups[match[1].toLowerCase() as SystemKey].push({ src, index: Number(match[2]) })
+    map.set(`${match[1].toLowerCase()}/${Number(match[2])}`, src)
   }
-
-  for (const key of Object.keys(groups) as SystemKey[]) {
-    groups[key].sort((a, b) => a.index - b.index)
-  }
-  return groups
+  return map
 })
 
-const currentImages = computed(() => images.value[current.value])
+const group = computed(
+  () => KEYBOARD_GROUPS.find((item) => item.key === current.value) ?? KEYBOARD_GROUPS[0]
+)
+
+/** 当前系统的截图（给 el-image 的预览列表用） */
+const previewList = computed(() =>
+  group.value.steps
+    .map((step) => imageMap.value.get(`${group.value.key}/${step.index}`))
+    .filter((src): src is string => Boolean(src))
+)
+
+function imageOf(step: number): string | undefined {
+  return imageMap.value.get(`${group.value.key}/${step}`)
+}
+
+/** 预览起始位置：缺图时 previewList 的下标会错位，所以按"当前是第几张有效图"算 */
+function previewIndex(step: number): number {
+  const src = imageOf(step)
+  return src ? previewList.value.indexOf(src) : 0
+}
 </script>
 
 <template>
@@ -50,36 +58,40 @@ const currentImages = computed(() => images.value[current.value])
     <header class="head">
       <div>
         <h1 class="head__title">小键盘设置</h1>
-        <p class="head__sub">本程序的数据都基于小键盘操作。按自己的系统版本看下面的设置步骤。</p>
+        <p class="head__sub">
+          本程序的数据都基于小键盘操作，先把系统的「鼠标键」打开。按自己的系统版本看下面的步骤。
+        </p>
       </div>
       <el-radio-group v-model="current">
-        <el-radio-button v-for="item in SYSTEMS" :key="item.value" :value="item.value">
+        <el-radio-button v-for="item in KEYBOARD_GROUPS" :key="item.key" :value="item.key">
           {{ item.label }}
         </el-radio-button>
       </el-radio-group>
     </header>
 
-    <div v-if="currentImages.length === 0" class="card empty">
-      <p class="empty__title">这一步的截图还没放进来</p>
-      <p class="empty__text">
-        把截图按 <code>{{ current }}-1.png</code>、<code>{{ current }}-2.png</code> … 命名， 放进
-        <code>src/renderer/src/assets/keyboard/</code>，页面会自动显示（不用改代码）。
-      </p>
-    </div>
+    <p class="head__hint">{{ group.hint }}</p>
 
-    <div v-else class="shots">
-      <figure v-for="(image, index) in currentImages" :key="image.src" class="card shot">
+    <ol class="steps">
+      <li v-for="step in group.steps" :key="step.index" class="card step">
+        <div class="step__head">
+          <span class="step__no">{{ step.index }}</span>
+          <p class="step__title">{{ step.title }}</p>
+        </div>
+
         <el-image
-          :src="image.src"
+          v-if="imageOf(step.index)"
+          :src="imageOf(step.index)"
           fit="contain"
-          :preview-src-list="currentImages.map((item) => item.src)"
-          :initial-index="index"
+          :preview-src-list="previewList"
+          :initial-index="previewIndex(step.index)"
           preview-teleported
-          class="shot__img"
+          class="step__img"
         />
-        <figcaption class="shot__caption">第 {{ index + 1 }} 步</figcaption>
-      </figure>
-    </div>
+        <div v-else class="step__missing">
+          这张截图待补（<code>{{ group.key }}/{{ step.index }}.png</code>）
+        </div>
+      </li>
+    </ol>
   </section>
 </template>
 
@@ -87,7 +99,7 @@ const currentImages = computed(() => images.value[current.value])
 .keyboard {
   display: flex;
   flex-direction: column;
-  gap: 0.875rem;
+  gap: 0.75rem;
   padding: clamp(16px, 2.2vw, 28px);
 }
 
@@ -109,54 +121,77 @@ const currentImages = computed(() => images.value[current.value])
 .head__sub {
   margin: 0.25rem 0 0;
   font-size: var(--font-size-sm);
+  line-height: 1.8;
   color: var(--text-2);
 }
 
-.shots {
-  display: flex;
-  flex-direction: column;
-  gap: 0.875rem;
-}
-
-.shot {
-  padding: 0.75rem;
-}
-
-/* 截图宽度自适应，但不超过内容区；点击可看原图 */
-.shot__img {
-  display: block;
-  width: 100%;
-  border-radius: var(--radius-sm);
-}
-
-.shot__caption {
-  margin-top: 0.5rem;
+.head__hint {
+  margin: 0;
   font-size: var(--font-size-sm);
   color: var(--text-3);
-  text-align: center;
 }
 
-.empty {
-  padding: 2rem;
-  text-align: center;
-}
-
-.empty__title {
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
   margin: 0;
-  font-size: var(--font-size-lg);
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  padding: clamp(0.75rem, 1.4vw, 1.25rem);
+}
+
+.step__head {
+  display: flex;
+  gap: 0.625rem;
+  align-items: baseline;
+}
+
+/* 步骤号做成圆形徽标，扫一眼就知道进行到第几步 */
+.step__no {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5rem;
+  color: #fff;
+  text-align: center;
+  background: var(--primary);
+  border-radius: 50%;
+}
+
+.step__title {
+  margin: 0;
+  font-size: var(--font-size-base);
+  line-height: 1.7;
   color: var(--text-1);
 }
 
-.empty__text {
-  margin: 0.5rem 0 0;
-  font-size: var(--font-size-sm);
-  line-height: 1.9;
-  color: var(--text-2);
+/* 截图宽度自适应；点开看原图 */
+.step__img {
+  display: block;
+  width: 100%;
+  margin-top: 0.75rem;
+  border-radius: var(--radius-sm);
 }
 
-.empty__text code {
-  padding: 0 0.25rem;
+.step__missing {
+  margin-top: 0.75rem;
+  padding: 1.5rem;
+  font-size: var(--font-size-sm);
+  color: var(--text-3);
+  text-align: center;
   background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+
+.step__missing code {
+  padding: 0 0.25rem;
+  background: var(--surface-1);
   border-radius: 4px;
 }
 </style>

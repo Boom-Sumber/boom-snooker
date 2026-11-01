@@ -1,13 +1,15 @@
 # 小键盘设置截图
 
-把截图按下面的命名放进来，页面会**自动识别**（不需要改代码）：
+来源：旧版 WPF 项目
+`E:/wpf/wpf/SnookerApp/Snooker_2D/Assets/Images/KeyBoardSettingImage/{win10,win7}/`
 
-| 文件名 | 说明 |
-|---|---|
-| `win10-1.png` … `win10-5.png` | Win10 / Win11 的设置步骤，按数字顺序显示 |
-| `win7-1.png` … `win7-3.png` | Win7 的设置步骤 |
+目录约定（**换图只要同名覆盖，不用改代码**）：
 
-支持 `.png` / `.jpg` / `.webp`。文件名前缀决定归到哪个系统，
-数字决定顺序（`win10-2` 排在 `win10-10` 前面，按数字比不是按字符串比）。
+```
+win10/1.png … 5.png     Win10 / Win11 的 5 步
+win7/1.png  … 3.png     Windows 7 的 3 步
+```
 
-目录为空时，页面会显示一段提示，不会报错。
+- 数字对应 `src/renderer/src/content/keyboard.ts` 里每一步的 `index`
+- 某张图缺失时，页面上那一步会显示「这张截图待补」，**不会整步消失**（步骤数是固定的）
+- 支持 `.png` / `.jpg` / `.webp`
