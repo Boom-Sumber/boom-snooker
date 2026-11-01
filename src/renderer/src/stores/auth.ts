@@ -18,8 +18,13 @@ import {
   onAuthStateChange,
   signIn as apiSignIn,
   signOut as apiSignOut,
+  signUp as apiSignUp,
+  updateMyProfile,
+  type Gender,
   type PasswordResult,
   type Profile,
+  type ProfilePatch,
+  type ProfileResult,
   type RoleCode,
   type SignInResult
 } from '@shared/auth'
@@ -40,6 +45,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   const nickname = computed(() => profile.value?.nickname ?? '')
   const avatar = computed(() => profile.value?.avatar ?? '')
+  /** 性别：老数据可能为 null，统一按 male 处理（与数据库默认值一致） */
+  const gender = computed<Gender>(() => (profile.value?.gender === 'female' ? 'female' : 'male'))
 
   /** 能写记录（投稿）：高级 / 管理员 / 超管 */
   const canWrite = computed(() =>
@@ -110,6 +117,36 @@ export const useAuthStore = defineStore('auth', () => {
     return result
   }
 
+  /**
+   * 注册（D13 开放注册，邮箱确认已关闭 → 注册即登录）
+   *
+   * 昵称与性别随 `signUp` 的 metadata 一起提交，由数据库触发器写进 profiles。
+   */
+  async function signUp(
+    email: string,
+    password: string,
+    nickname: string,
+    genderCode: Gender
+  ): Promise<SignInResult> {
+    errorMessage.value = ''
+    const result = await apiSignUp(email, password, { nickname, gender: genderCode })
+    if (!result.ok) {
+      errorMessage.value = result.message
+      return result
+    }
+    session.value = result.session
+    await loadProfile()
+    status.value = 'signedIn'
+    return result
+  }
+
+  /** 改自己的昵称 / 头像 / 性别（角色不在这里） */
+  async function updateProfile(patch: ProfilePatch): Promise<ProfileResult> {
+    const result = await updateMyProfile(patch)
+    if (result.ok) profile.value = result.profile
+    return result
+  }
+
   async function signOut(): Promise<void> {
     await apiSignOut()
     session.value = null
@@ -145,12 +182,15 @@ export const useAuthStore = defineStore('auth', () => {
     role,
     nickname,
     avatar,
+    gender,
     canWrite,
     isAdmin,
     isSuperadmin,
     init,
     loadProfile,
     signIn,
+    signUp,
+    updateProfile,
     signOut,
     changePassword,
     dispose

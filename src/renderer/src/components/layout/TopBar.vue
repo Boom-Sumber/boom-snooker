@@ -8,7 +8,7 @@ import LoginDialog from '@renderer/components/LoginDialog.vue'
 import ChangePasswordDialog from '@renderer/components/ChangePasswordDialog.vue'
 import { iconSize, type IconName } from '@renderer/icons'
 import { ROLE_LABELS } from '@renderer/navigation/menu'
-import avatarBoy from '@renderer/assets/avatars/avatar-boy.png'
+import { resolveAvatar } from '@renderer/assets/avatars'
 import { useAuthStore, useDatasetStore, useThemeStore } from '@renderer/stores'
 import WindowControls from './WindowControls.vue'
 
@@ -52,8 +52,10 @@ function toggleTheme(): void {
 /** 头像与昵称：登录后跟着 profile 走，未登录显示占位 */
 const auth = useAuthStore()
 const router = useRouter()
-const { nickname, avatar } = storeToRefs(auth)
-const avatarSrc = computed(() => avatar.value || avatarBoy)
+const { nickname } = storeToRefs(auth)
+
+/** 头像按「用户选的 key → 性别默认」解析，未登录时也会回落到男生头像 */
+const avatarSrc = computed(() => resolveAvatar(auth.avatar, auth.gender))
 
 const roleLabel = computed(() => ROLE_LABELS[auth.role] ?? auth.role)
 

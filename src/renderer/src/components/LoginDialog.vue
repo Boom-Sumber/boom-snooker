@@ -10,6 +10,7 @@
  */
 import { reactive, ref, watch } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import RegisterDialog from '@renderer/components/RegisterDialog.vue'
 import { useAuthStore } from '@renderer/stores'
 
 const props = defineProps<{ visible: boolean }>()
@@ -22,6 +23,9 @@ const emit = defineEmits<{
 const auth = useAuthStore()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
+
+/** 注册对话框：登录框里点「注册新账号」直接换过去 */
+const registerVisible = ref(false)
 
 const model = reactive({ email: '', password: '' })
 
@@ -101,8 +105,46 @@ async function submit(): Promise<void> {
     </el-form>
 
     <template #footer>
-      <el-button :disabled="loading" @click="close">取消</el-button>
-      <el-button type="primary" :loading="loading" @click="submit">登录</el-button>
+      <div class="footer">
+        <el-button text type="primary" class="footer__register" @click="registerVisible = true">
+          注册新账号
+        </el-button>
+        <div class="footer__actions">
+          <el-button :disabled="loading" @click="close">取消</el-button>
+          <el-button type="primary" :loading="loading" @click="submit">登录</el-button>
+        </div>
+      </div>
     </template>
   </el-dialog>
+
+  <!-- 注册成功后：关掉登录框，把 signed-in 往上抛 -->
+  <RegisterDialog
+    v-model:visible="registerVisible"
+    @signed-in="
+      () => {
+        close()
+        emit('signed-in')
+      }
+    "
+  />
 </template>
+
+<style scoped>
+.footer {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.footer__register {
+  padding-left: 0;
+  font-size: var(--font-size-sm);
+}
+
+.footer__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+</style>

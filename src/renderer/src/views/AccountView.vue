@@ -11,7 +11,8 @@ import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import LoginDialog from '@renderer/components/LoginDialog.vue'
 import ChangePasswordDialog from '@renderer/components/ChangePasswordDialog.vue'
-import avatarBoy from '@renderer/assets/avatars/avatar-boy.png'
+import ProfileEditDialog from '@renderer/components/ProfileEditDialog.vue'
+import { GENDER_LABELS, resolveAvatar } from '@renderer/assets/avatars'
 import { ROLE_LABELS } from '@renderer/navigation/menu'
 import { useAuthStore } from '@renderer/stores'
 
@@ -19,9 +20,11 @@ const auth = useAuthStore()
 
 const loginVisible = ref(false)
 const passwordVisible = ref(false)
+const profileVisible = ref(false)
 
-const avatarSrc = computed(() => auth.avatar || avatarBoy)
+const avatarSrc = computed(() => resolveAvatar(auth.avatar, auth.gender))
 const roleLabel = computed(() => ROLE_LABELS[auth.role] ?? auth.role)
+const genderLabel = computed(() => GENDER_LABELS[auth.gender])
 const email = computed(() => auth.user?.email ?? '')
 
 const createdAt = computed(() => {
@@ -82,6 +85,10 @@ async function onSignOut(): Promise<void> {
             </dd>
           </div>
           <div class="row">
+            <dt>性别</dt>
+            <dd>{{ auth.isSignedIn ? genderLabel : '—' }}</dd>
+          </div>
+          <div class="row">
             <dt>注册时间</dt>
             <dd>{{ createdAt || '—' }}</dd>
           </div>
@@ -92,6 +99,7 @@ async function onSignOut(): Promise<void> {
 
       <div class="actions">
         <template v-if="auth.isSignedIn">
+          <el-button @click="profileVisible = true">编辑资料</el-button>
           <el-button @click="passwordVisible = true">修改密码</el-button>
           <el-button type="danger" plain @click="onSignOut">登出</el-button>
         </template>
@@ -101,6 +109,7 @@ async function onSignOut(): Promise<void> {
 
     <LoginDialog v-model:visible="loginVisible" />
     <ChangePasswordDialog v-model:visible="passwordVisible" />
+    <ProfileEditDialog v-model:visible="profileVisible" />
   </section>
 </template>
 
