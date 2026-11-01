@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
+import type { AppInfoApi } from '@shared/types/app'
 import type { AuthVaultApi } from '@shared/types/auth'
 import type { CacheFileInfo, LocalStoreApi } from '@shared/types/storage'
 import type { ThemeApi, ThemeMode, ThemeState } from '@shared/types/theme'
@@ -11,7 +12,11 @@ const api: {
   windowControls: WindowControls
   auth: AuthVaultApi
   store: LocalStoreApi
+  app: AppInfoApi
 } = {
+  app: {
+    info: () => ipcRenderer.invoke('app:info')
+  },
   theme: {
     get: (): Promise<ThemeState> => ipcRenderer.invoke('theme:get'),
     set: (mode: ThemeMode): Promise<ThemeState> => ipcRenderer.invoke('theme:set', mode)

@@ -73,10 +73,18 @@ export const router = createRouter({
           meta: { title: '进阶详情' }
         },
         {
-          path: 'about',
-          name: 'about',
-          component: () => import('@renderer/views/AboutView.vue'),
-          meta: { title: '关于' }
+          // 小键盘设置（T3.7）：步骤截图按系统版本分两套
+          path: 'keyboard',
+          name: 'keyboard',
+          component: () => import('@renderer/views/KeyBoardView.vue'),
+          meta: { title: '小键盘设置' }
+        },
+        {
+          // 系统设置（T3.7）：主题 / 数据同步 / 版本与关于（旧版的「关于」页并入这里）
+          path: 'settings',
+          name: 'settings',
+          component: () => import('@renderer/views/SettingsView.vue'),
+          meta: { title: '系统设置' }
         },
         {
           // 账号页：从顶栏头像菜单进（侧栏不放，旧版也是从用户区进）

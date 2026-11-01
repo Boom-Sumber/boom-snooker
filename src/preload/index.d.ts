@@ -1,4 +1,5 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
+import type { AppInfoApi } from '@shared/types/app'
 import type { AuthVaultApi } from '@shared/types/auth'
 import type { LocalStoreApi } from '@shared/types/storage'
 import type { ThemeApi } from '@shared/types/theme'
@@ -12,6 +13,7 @@ declare global {
       windowControls: WindowControls
       auth: AuthVaultApi
       store: LocalStoreApi
+      app: AppInfoApi
     }
   }
 }

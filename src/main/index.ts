@@ -1,5 +1,6 @@
 import { app, BrowserWindow } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
+import { registerAppInfoIpc } from './appInfo'
 import { registerAuthIpc } from './auth'
 import { registerStoreIpc } from './store'
 import { initTheme } from './theme'
@@ -27,6 +28,7 @@ if (!gotSingleInstanceLock) {
 
     registerWindowIpc()
     registerAuthIpc()
+    registerAppInfoIpc()
     registerStoreIpc()
 
     // 开发期 F12 开关 DevTools，生产期忽略 Ctrl+R
