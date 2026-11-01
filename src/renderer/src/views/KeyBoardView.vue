@@ -171,11 +171,18 @@ function previewIndex(step: number): number {
   color: var(--text-1);
 }
 
-/* 截图宽度自适应；点开看原图 */
+/*
+ * 截图宽度自适应；点开看原图。
+ * 截图本身是白底的 Windows 界面，暗色主题下会「糊」在卡片里 ——
+ * 加一圈细边框把它和背景分开（docs/04 §2.5 的暗色图片问题）。
+ */
 .step__img {
   display: block;
   width: 100%;
   margin-top: 0.75rem;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
 
