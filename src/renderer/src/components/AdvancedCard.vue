@@ -9,6 +9,7 @@
 import { computed } from 'vue'
 import { imageUrl } from '@shared/media/url'
 import type { Advanced } from '@renderer/stores'
+import AuthorTag from '@renderer/components/AuthorTag.vue'
 
 const props = defineProps<{ item: Advanced }>()
 
@@ -49,7 +50,7 @@ const updatedText = computed(() => {
     <h2 class="advanced-card__title">{{ item.title }}</h2>
 
     <p class="advanced-card__meta">
-      <span>{{ item.updated_by || '未知' }}</span>
+      <AuthorTag :name="item.updated_by" :deleted="item.author_deleted" />
       <span>{{ updatedText }}</span>
     </p>
   </article>

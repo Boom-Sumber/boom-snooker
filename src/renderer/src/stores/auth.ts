@@ -10,6 +10,7 @@
  */
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import type { Session } from '@supabase/supabase-js'
 import {
   changePassword as apiChangePassword,
@@ -58,12 +59,40 @@ export const useAuthStore = defineStore('auth', () => {
 
   let unsubscribe: (() => void) | null = null
 
+  /**
+   * `loadProfile` 的并发锁
+   *
+   * `signIn` 和 `onAuthStateChange` 会**同时**调它，被停用账号会两次命中"踢下线"分支，
+   * 弹两遍提示、发两次登出。光在分支里加标记不行（两次都先 await 再判断，照样都进来），
+   * 必须在函数入口就挡住。
+   */
+  let loadingProfile = false
+
   async function loadProfile(): Promise<void> {
+    if (loadingProfile) return
+    loadingProfile = true
     try {
-      profile.value = await getMyProfile()
+      const next = await getMyProfile()
+
+      /*
+       * 被停用的账号仍然能通过 Supabase Auth 登录（D25：不删 auth.users），
+       * 所以"停用"必须在拿到 profile 这一刻生效 —— 立即登出并提示。
+       * 数据库那边权限层已经把这种账号当 anon 处理（deleted_at is null 才算角色），
+       * 这里是**体验层**的兜底，不是安全边界。
+       */
+      if (next?.deleted_at) {
+        profile.value = null
+        ElMessage.warning('账号已停用，请联系管理员')
+        await signOut()
+        return
+      }
+
+      profile.value = next
     } catch (error) {
       console.error('[auth] 读取 profile 失败：', error)
       profile.value = null
+    } finally {
+      loadingProfile = false
     }
   }
 

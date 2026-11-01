@@ -12,8 +12,13 @@ import { supabase } from '../api/client'
 import type { Tables } from '../types/db'
 import { clearAuthVault } from './storage'
 
-/** profiles 表的一行（含 role，决定 UI 能力） */
-export type Profile = Tables<'profiles'>
+/**
+ * profiles 表的一行（含 role，决定 UI 能力）
+ *
+ * `deleted_at` 是 D25/D29 的软删除标记：`shared/types/db.ts` 还是 migration 019 的快照，
+ * 暂时手动补上这个字段（重新生成类型后可以去掉这里的 `&`）。
+ */
+export type Profile = Tables<'profiles'> & { deleted_at?: string | null }
 
 /** 四级角色，与 docs/03 第 9 节一致 */
 export type RoleCode = 'viewer' | 'advanced' | 'admin' | 'superadmin'
@@ -124,11 +129,12 @@ export async function getMyProfile(): Promise<Profile | null> {
   if (!user) return null
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, nickname, avatar, gender, role, created_at')
+    .select('id, nickname, avatar, gender, role, created_at, deleted_at')
     .eq('id', user.id)
     .maybeSingle()
   if (error) return null
-  return data
+  // 生成的类型里还没有 deleted_at，这里按上面 `Profile` 的定义转一下
+  return data as unknown as Profile
 }
 
 /**

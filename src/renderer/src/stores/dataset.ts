@@ -21,8 +21,15 @@ import {
 } from '@shared/sync/snapshot'
 import type { Tables } from '@shared/types/db'
 
-export type Ball = Tables<'balls'>
-export type Advanced = Tables<'advanced'>
+/**
+ * 快照行 + `author_deleted`（D30）
+ *
+ * 服务端 `get_dataset_snapshot()` 会给每行多塞一个 `author_deleted`，
+ * 但 `shared/types/db.ts` 是表结构的快照类型，不含这个计算字段，所以在这里补。
+ * 旧版本地缓存里没有这个字段 —— 读取时按 `undefined`（= 未停用）处理即可。
+ */
+export type Ball = Tables<'balls'> & { author_deleted?: boolean }
+export type Advanced = Tables<'advanced'> & { author_deleted?: boolean }
 export type DictRow = Tables<'display_dict'>
 
 export type SyncState = 'idle' | SyncStatus

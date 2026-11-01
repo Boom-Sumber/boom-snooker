@@ -24,6 +24,7 @@ import { BALL_LABELS } from '@renderer/navigation/menu'
 import { useAuthStore, useDatasetStore } from '@renderer/stores'
 import { imageUrl } from '@shared/media/url'
 import { deleteBall } from '@shared/api/balls'
+import AuthorTag from '@renderer/components/AuthorTag.vue'
 
 const props = defineProps<{ color: string; id: string }>()
 
@@ -147,7 +148,7 @@ async function onSaved(): Promise<void> {
       </header>
 
       <p class="detail__meta">
-        <span>作者：{{ ball.updated_by || '未知' }}</span>
+        <span>作者：<AuthorTag :name="ball.updated_by" :deleted="ball.author_deleted" /></span>
         <span>更新时间：{{ updatedText }}</span>
       </p>
 

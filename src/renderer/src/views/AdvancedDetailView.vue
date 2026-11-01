@@ -19,6 +19,7 @@ import { CATEGORY_LABELS } from '@renderer/navigation/menu'
 import { useAuthStore, useDatasetStore } from '@renderer/stores'
 import { imageUrl } from '@shared/media/url'
 import { deleteAdvanced } from '@shared/api/advanced'
+import AuthorTag from '@renderer/components/AuthorTag.vue'
 
 const props = defineProps<{ category: string; id: string }>()
 
@@ -114,7 +115,7 @@ async function onSaved(): Promise<void> {
     <article v-else class="detail__body card">
       <h1 class="detail__title">{{ item.title }}</h1>
       <p class="detail__meta">
-        <span>作者：{{ item.updated_by || '未知' }}</span>
+        <span>作者：<AuthorTag :name="item.updated_by" :deleted="item.author_deleted" /></span>
         <span>更新时间：{{ updatedText }}</span>
       </p>
 

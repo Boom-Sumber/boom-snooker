@@ -16,6 +16,7 @@
 import { computed } from 'vue'
 import { imageUrl } from '@shared/media/url'
 import type { Ball } from '@renderer/stores'
+import AuthorTag from '@renderer/components/AuthorTag.vue'
 
 const props = defineProps<{
   ball: Ball
@@ -55,7 +56,7 @@ const updatedText = computed(() => {
     <header class="ball-card__head">
       <div class="ball-card__strength">{{ strengthText }}</div>
       <div class="ball-card__meta">
-        <span>作者：{{ ball.updated_by || '未知' }}</span>
+        <span>作者：<AuthorTag :name="ball.updated_by" :deleted="ball.author_deleted" /></span>
         <span>更新时间：{{ updatedText }}</span>
       </div>
       <div class="ball-card__actions" @click.stop>
