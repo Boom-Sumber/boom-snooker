@@ -83,7 +83,10 @@ git log --oneline -15
 
 **没有 MCP 工具、只能手动做的**：关闭邮箱确认（Auth 配置）、保存数据库密码。
 
-> 项目：组织 `Boom-Projects`（`ztkscmrpkjwzjzttpmgl`），region `ap-southeast-1`。
+> 项目：组织 `Boom-Projects`（**组织 id** `ztkscmrpkjwzjzttpmgl`），**项目 ref** `endwymjjxudepmtwmfpx`，region `ap-southeast-1`。
+>
+> ⚠️ **`apply_migration` / `execute_sql` 的 `project_id` 要填项目 ref，不是组织 id**。填组织 id 会直接返回
+> `MCP error -32600: You do not have permission to perform this action`（看着像没授权，其实是参数错了）。
 
 ---
 
