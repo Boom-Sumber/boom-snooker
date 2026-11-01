@@ -94,6 +94,13 @@ export const router = createRouter({
           meta: { title: '账户管理', roles: ['admin', 'superadmin'] }
         },
         {
+          // 文案管理（D31）：只有超管能改站点文案
+          path: 'content',
+          name: 'content',
+          component: () => import('@renderer/views/ContentView.vue'),
+          meta: { title: '文案管理', roles: ['superadmin'] }
+        },
+        {
           path: ':pathMatch(.*)*',
           name: 'not-found',
           component: () => import('@renderer/views/NotFoundView.vue'),

@@ -20,6 +20,7 @@ import {
   type SyncStatus
 } from '@shared/sync/snapshot'
 import type { Tables } from '@shared/types/db'
+import type { SiteSection } from '@shared/types/content'
 
 /**
  * 快照行 + `author_deleted`（D30）
@@ -46,6 +47,10 @@ export const useDatasetStore = defineStore('dataset', () => {
   const balls = computed<Ball[]>(() => snapshot.value?.balls ?? [])
   const advanced = computed<Advanced[]>(() => snapshot.value?.advanced ?? [])
   const dict = computed<DictRow[]>(() => snapshot.value?.dict ?? [])
+  /**
+   * 站点文案（D31）。旧缓存没有这个字段 → 空数组，页面自己回落到内置文案。
+   */
+  const content = computed<SiteSection[]>(() => snapshot.value?.content ?? [])
   const lastSyncAt = computed(() => snapshot.value?.savedAt ?? null)
 
   /** 有数据就算 ready；离线且从没同步过时为 false，页面要显示空状态 */
@@ -171,6 +176,7 @@ export const useDatasetStore = defineStore('dataset', () => {
     balls,
     advanced,
     dict,
+    content,
     lastSyncAt,
     isReady,
     dictMap,

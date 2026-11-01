@@ -1,12 +1,16 @@
 <script setup lang="ts">
 /**
- * 首页（T3.6）
+ * 首页（T3.6 / D31）
  *
  * 三段内容里**只保留两段**：声明 + 技术要点。
  * 旧版的「主播推广 / 抖音外链」按用户要求砍掉（2026-11-01），
- * 所以这页没有外链、没有二维码，纯静态文案 + 本地数据概览。
+ * 所以这页没有外链、没有二维码，纯文案 + 本地数据概览。
  *
- * 文案在 `content/home.ts`，组件只负责排版 —— 改措辞不用碰模板。
+ * 文案来源有两级（D31）：
+ *   ① 快照里的 `content`（`site_sections` / `site_points`，超管在「文案管理」页在线改）
+ *   ② 拿不到（首次启动没网 / 旧缓存）就回落到 `content/home.ts` 的内置文案
+ *
+ * 这样既能在线改文案，又不会因为断网让首页开天窗。
  */
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
@@ -14,7 +18,30 @@ import { HOME_SECTIONS } from '@renderer/content/home'
 import { useDatasetStore } from '@renderer/stores'
 
 const dataset = useDatasetStore()
-const { balls, advanced, version, lastSyncAt } = storeToRefs(dataset)
+const { balls, advanced, version, lastSyncAt, content } = storeToRefs(dataset)
+
+interface ViewSection {
+  key: string
+  title: string
+  intro?: string
+  points: { label?: string; text: string }[]
+}
+
+/** 数据库文案 → 视图结构；空则回落到内置文案 */
+const sections = computed<ViewSection[]>(() => {
+  const fromDb = content.value.filter((item) => item.title?.trim())
+  if (fromDb.length === 0) return HOME_SECTIONS
+
+  return fromDb.map((item) => ({
+    key: item.key,
+    title: item.title,
+    intro: item.intro ?? undefined,
+    points: (item.points ?? []).map((point) => ({
+      label: point.label ?? undefined,
+      text: point.body
+    }))
+  }))
+})
 
 /** `savedAt` 存的是毫秒时间戳（不是 ISO 字符串），这里统一按 Date 处理 */
 function formatSync(raw: number | null): string {
@@ -51,7 +78,7 @@ const stats = computed(() => [
     </header>
 
     <div class="sections">
-      <article v-for="section in HOME_SECTIONS" :key="section.key" class="card section">
+      <article v-for="section in sections" :key="section.key" class="card section">
         <h2 class="section__title">{{ section.title }}</h2>
         <p v-if="section.intro" class="section__intro">{{ section.intro }}</p>
 

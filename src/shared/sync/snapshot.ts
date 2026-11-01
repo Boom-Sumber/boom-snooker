@@ -16,6 +16,7 @@
  */
 import type { Json } from '../types/db'
 import type { Tables } from '../types/db'
+import type { SiteSection } from '../types/content'
 import { supabase } from '../api/client'
 import { CACHE_NAMES, peekCache, readCache, writeCache } from '../storage/local'
 
@@ -26,6 +27,12 @@ export interface DatasetSnapshot {
   balls: Tables<'balls'>[]
   advanced: Tables<'advanced'>[]
   dict: Tables<'display_dict'>[]
+  /**
+   * 站点文案（D31，migration 024 起）
+   *
+   * 可选：升级前写下的本地缓存里没有这个键，读取方必须能容忍 undefined。
+   */
+  content?: SiteSection[]
   /** 本地写入时间（毫秒），只用于 UI 显示"数据更新于" */
   savedAt: number
 }
