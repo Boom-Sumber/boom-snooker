@@ -61,6 +61,9 @@ git log --oneline -15
 9. **不写死像素尺寸**（`width: 1100px` 这种）。窗口要能缩放。
 10. **本地存储用原子 rename 替换**，不要直接写目标文件——中断会损坏缓存。
 11. **所有 DDL 必须落成 migration 文件并提交 git**。MCP 只是执行通道，不是真相来源；`execute_sql` 只能查数据和临时验证，**禁止用来改结构**。每次 DDL 后跑 `get_advisors(type='security')`。
+12. **注册必须邀请码**（D27）：强制校验在 `handle_new_user` trigger 里，客户端 `validate_invite_code()` 只负责友好文案。**不要用 `auth.uid() is null` 放行** —— GoTrue 插入 `auth.users` 时本身就是 null，放行等于全部绕过。也不要信任 metadata 里的 `invited_by` / `role`，只信 `invite_code`。
+13. **账户只能管自己邀请的**（D28）：`profiles.invited_by` 是管理边界，可见范围、改角色、审核、停用全走 `can_review_owner()` / `can_manage_user()`。超管看全量、但只审自己**直邀**的内容。
+14. **停用不是删除**（D29/D30）：不删 `auth.users`；级联只**隐藏**（`state=0` + `hidden_reason='owner_deleted'`，**不动 `review_status`**），恢复只恢复 `hidden_reason='owner_deleted'` 的行；停用/恢复必须**显式 bump `dataset_version`**（`profiles` 变更不触发 trigger）。
 
 ---
 
@@ -137,10 +140,10 @@ T3.2 彩球列表页
 | `src/preload/`         | 预加载脚本（contextBridge 暴露 API）                   |
 | `src/shared/`          | 主/渲染共用：`types/`（已建）、api、auth、sync、storage、media（T2 建），别名 `@shared` |
 | `src/renderer/`        | Vue3 应用外壳：`index.html`（含 CSP）                |
-| `src/renderer/src/`    | **Vue 源码实际在这层**（electron-vite 默认结构，别名 `@renderer`）：`router/`、`layouts/`、`navigation/`、`views/`、`components/`、`theme/`、`styles/`、`assets/`；`stores/` 待 T2.5 |
+| `src/renderer/src/`    | **Vue 源码实际在这层**（electron-vite 默认结构，别名 `@renderer`）：`router/`、`layouts/`、`navigation/`、`views/`、`components/`、`theme/`、`styles/`、`assets/`、`stores/`、`content/`（首页等静态文案） |
+| `supabase/migrations/` | 数据库迁移文件（**唯一的 schema 真相来源**）；账户框架见 `020~023` |
 | `build/`               | electron-builder 的 `buildResources`（图标），**必须入库**，`.gitignore` 里不能忽略 |
 | `scripts/`             | 数据迁移、图片处理（阶段 0）                               |
-| `supabase/migrations/` | 数据库迁移文件（**唯一的 schema 真相来源**）                  |
 | `docs/`                | 本文档目录                                         |
 
 ### 常用命令
