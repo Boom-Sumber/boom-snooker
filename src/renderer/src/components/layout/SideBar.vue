@@ -4,16 +4,26 @@ import { useRoute } from 'vue-router'
 import {
   findGroupKeyByPath,
   matchesPath,
-  navGroups,
+  visibleNavGroups,
   type NavGroup
 } from '@renderer/navigation/menu'
 import AppIcon from '@renderer/components/AppIcon.vue'
 import { iconSize } from '@renderer/icons'
+import { useAuthStore } from '@renderer/stores'
 
 const props = defineProps<{ collapsed: boolean }>()
 const emit = defineEmits<{ (event: 'expand'): void }>()
 
 const route = useRoute()
+const auth = useAuthStore()
+
+/**
+ * 按当前角色过滤后的菜单
+ *
+ * 「账户管理」只对 admin / superadmin 显示；未登录与普通用户看不到这一项。
+ * 这里只是"看不见"，进不进得去由 router 的 meta.roles 守卫决定。
+ */
+const groups = computed(() => visibleNavGroups(auth.role))
 
 // 默认展开「主页」「彩球」，跟旧版一致
 const openGroups = ref<string[]>(['home', 'balls'])
@@ -47,7 +57,7 @@ async function measureLabelWidths(): Promise<void> {
   ctx.font = `400 ${rootSize}px ${family}`
 
   const next: Record<string, number> = {}
-  for (const group of navGroups) {
+  for (const group of groups.value) {
     let max = 0
     for (const item of group.items) {
       max = Math.max(max, ctx.measureText(item.label).width)
@@ -66,6 +76,14 @@ function labelWidth(key: string): string | undefined {
 onMounted(() => {
   void measureLabelWidths()
 })
+
+// 登录 / 登出会改变可见项（多出或少掉「账户管理」），宽度要重量一次
+watch(
+  () => auth.role,
+  () => {
+    void measureLabelWidths()
+  }
+)
 
 // 路由变化时自动展开所属分组（比如从顶部栏跳进来）
 watch(
@@ -115,7 +133,7 @@ function isActive(path: string): boolean {
     </div>
 
     <nav class="sidebar__nav">
-      <div v-for="group in navGroups" :key="group.key" class="group">
+      <div v-for="group in groups" :key="group.key" class="group">
         <!-- 折叠态：只显示分组图标（不是文字首字），点了展开侧栏 -->
         <button
           v-if="collapsed"

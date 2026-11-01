@@ -10,6 +10,13 @@ import type { IconName } from '@renderer/icons'
 export interface NavItem {
   label: string
   path: string
+  /**
+   * 只对哪些角色可见（不写 = 所有人可见）
+   *
+   * ⚠️ 这只是"看不见"，**不是"进不去"** —— 直接改 hash 仍能打开页面。
+   * 真正的门槛是 `router` 的 `meta.roles` 守卫 + 服务端 RPC 校验，三层都要有。
+   */
+  roles?: Array<'viewer' | 'advanced' | 'admin' | 'superadmin'>
 }
 
 export interface NavGroup {
@@ -77,9 +84,29 @@ export const navGroups: NavGroup[] = [
     key: 'more',
     label: '更多',
     icon: 'more',
-    items: [{ label: 'About', path: '/about' }]
+    items: [
+      // 用户资料和顶栏头像菜单指向同一页（旧版也是两处入口）
+      { label: '用户资料', path: '/account' },
+      // 账户管理：只有管理员和超管看得见（D28）
+      { label: '账户管理', path: '/users', roles: ['admin', 'superadmin'] },
+      { label: 'About', path: '/about' }
+    ]
   }
 ]
+
+/**
+ * 按角色过滤菜单
+ *
+ * 未登录（`anon`）只看到不带 `roles` 的项；`admin` / `superadmin` 会多出「账户管理」。
+ */
+export function visibleNavGroups(role: string): NavGroup[] {
+  return navGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !item.roles || item.roles.includes(role as never))
+    }))
+    .filter((group) => group.items.length > 0)
+}
 
 /** 找出某个路径属于哪个分组（用于自动展开 + 高亮） */
 export function findGroupKeyByPath(path: string): string | undefined {

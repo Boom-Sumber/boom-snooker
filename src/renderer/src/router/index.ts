@@ -1,5 +1,7 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import MainLayout from '@renderer/layouts/MainLayout.vue'
+import { useAuthStore } from '@renderer/stores'
 
 /**
  * 冷启动先进启动页。
@@ -84,6 +86,14 @@ export const router = createRouter({
           meta: { title: '账号' }
         },
         {
+          // 账户管理（D28）：菜单只对 admin / superadmin 显示，
+          // meta.roles 才是"进不去"的那道门
+          path: 'users',
+          name: 'users',
+          component: () => import('@renderer/views/UserManageView.vue'),
+          meta: { title: '账户管理', roles: ['admin', 'superadmin'] }
+        },
+        {
           path: ':pathMatch(.*)*',
           name: 'not-found',
           component: () => import('@renderer/views/NotFoundView.vue'),
@@ -92,4 +102,26 @@ export const router = createRouter({
       ]
     }
   ]
+})
+
+/**
+ * 路由级权限守卫（D28）
+ *
+ * 菜单按角色过滤只是"看不见"；直接改 hash 仍能打开页面，所以这里再挡一道。
+ * 真正的最后一道防线永远是服务端 RPC 的校验。
+ *
+ * 身份还没确定时（`idle` / `loading`，冷启动刚进页面）**放行**：
+ * 此时 `auth.role` 还是 `anon`，直接拦会把管理员误判成没权限。
+ * 页面自己会按 `isAdmin` 显示「没有权限」，不会真露出数据。
+ */
+router.beforeEach((to) => {
+  const roles = to.meta.roles as string[] | undefined
+  if (!roles) return true
+
+  const auth = useAuthStore()
+  if (auth.status === 'idle' || auth.status === 'loading') return true
+  if (roles.includes(auth.role)) return true
+
+  ElMessage.warning('没有权限访问这个页面')
+  return { name: 'home' }
 })
