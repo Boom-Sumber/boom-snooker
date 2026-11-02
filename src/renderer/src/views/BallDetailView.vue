@@ -11,7 +11,7 @@
  *     右列「路线图」按预览尺寸显示
  *   - **只有路线图能点开原图**，击球点/蓝点只是静态缩略图
  *
- * 以后的评论区（阶段 4）挂在页面底部 —— 现在只留位置，不做设计。
+ * 评论区（T4.2）挂在页面底部，是独立卡片：评论不进快照，必须联网取。
  *
  * 数据不额外请求：按 id 从本地快照取（`dataset.findBall`），离线也能看。
  */
@@ -20,6 +20,7 @@ import { useRouter } from 'vue-router'
 import { ElImageViewer, ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeftBold } from '@element-plus/icons-vue'
 import BallFormDialog from '@renderer/components/BallFormDialog.vue'
+import CommentSection from '@renderer/components/CommentSection.vue'
 import { BALL_LABELS } from '@renderer/navigation/menu'
 import { useAuthStore, useDatasetStore } from '@renderer/stores'
 import { imageUrl } from '@shared/media/url'
@@ -211,8 +212,15 @@ async function onSaved(): Promise<void> {
         </figure>
       </div>
 
-      <!-- 评论区（T4）插在这里 -->
+      <!-- 评论区（T4.2）在下方独立区块，不放在卡片里 -->
     </article>
+
+    <CommentSection
+      v-if="dataset.isReady && ball"
+      class="detail__comments"
+      type="ball"
+      :target-id="ball.id"
+    />
 
     <ElImageViewer
       v-if="viewerVisible && routeUrl"
@@ -445,12 +453,18 @@ async function onSaved(): Promise<void> {
   overflow-wrap: anywhere;
 }
 
+/* 评论区：与正文同宽，挂在页面底部 */
+.detail__comments {
+  width: 100%;
+  max-width: 56rem;
+  margin-inline: auto;
+}
+
 .state {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
-
 .state__text {
   margin: 0;
   font-size: var(--font-size-sm);

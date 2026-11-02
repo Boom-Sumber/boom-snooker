@@ -5,7 +5,7 @@
  * 列表页的卡片只做索引（图 + 标题 + 作者 + 日期），完整内容在这里：
  * 大图（可点开原尺寸）、描述、注解。
  *
- * 以后的评论区（阶段 4）也挂在这一页底部 —— 现在只留了位置，不做设计。
+ * 评论区（T4.2）也挂在这一页底部，是独立卡片：评论不进快照，必须联网取。
  *
  * 数据不额外请求：按 id 从本地快照里取（`dataset.findAdvanced`），
  * 离线也能看；取不到时区分「还没同步完」和「确实不存在」。
@@ -15,6 +15,7 @@ import { useRouter } from 'vue-router'
 import { ElImageViewer, ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeftBold } from '@element-plus/icons-vue'
 import AdvancedFormDialog from '@renderer/components/AdvancedFormDialog.vue'
+import CommentSection from '@renderer/components/CommentSection.vue'
 import { CATEGORY_LABELS } from '@renderer/navigation/menu'
 import { useAuthStore, useDatasetStore } from '@renderer/stores'
 import { imageUrl } from '@shared/media/url'
@@ -141,8 +142,15 @@ async function onSaved(): Promise<void> {
         </div>
       </dl>
 
-      <!-- 评论区（T4）插在这里：卡片内折叠区改成详情页固定区块 -->
+      <!-- 评论区（T4.2）在下方独立区块，不放在卡片里 -->
     </article>
+
+    <CommentSection
+      v-if="dataset.isReady && item"
+      class="detail__comments"
+      type="advanced"
+      :target-id="item.id"
+    />
 
     <ElImageViewer
       v-if="viewerVisible && image"
@@ -280,6 +288,13 @@ async function onSaved(): Promise<void> {
   /* 注解里可能有手工换行 */
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* 评论区：与正文同宽，挂在页面底部 */
+.detail__comments {
+  width: 100%;
+  max-width: 56rem;
+  margin-inline: auto;
 }
 
 .state {
