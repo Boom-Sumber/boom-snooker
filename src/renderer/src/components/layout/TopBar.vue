@@ -6,8 +6,9 @@ import { ElMessage } from 'element-plus'
 import AppIcon from '@renderer/components/AppIcon.vue'
 import LoginDialog from '@renderer/components/LoginDialog.vue'
 import ChangePasswordDialog from '@renderer/components/ChangePasswordDialog.vue'
-import CommentReviewDialog from '@renderer/components/CommentReviewDialog.vue'
+import ReviewDialog from '@renderer/components/ReviewDialog.vue'
 import { countPendingComments } from '@shared/api/comments'
+import { countPendingRecords } from '@shared/api/review'
 import { iconSize, type IconName } from '@renderer/icons'
 import { ROLE_LABELS } from '@renderer/navigation/menu'
 import { resolveAvatar } from '@renderer/assets/avatars'
@@ -87,19 +88,26 @@ async function onAccountCommand(command: string): Promise<void> {
   }
 }
 
-/** 待审评论数（T4.3）：管理员才有，60 秒轮询一次 */
-const pendingCount = ref(0)
+/** 待审数量（T4.3 评论 + T4.5 记录）：管理员才有，60 秒轮询一次 */
+const commentPending = ref(0)
+const recordPending = ref(0)
 const reviewVisible = ref(false)
 let pendingTimer: number | undefined
 
+/** 角标显示总数；分开存是因为对话框要按页签显示各自的数量 */
+const pendingCount = computed(() => commentPending.value + recordPending.value)
+
 async function refreshPending(): Promise<void> {
   if (!auth.isAdmin) {
-    pendingCount.value = 0
+    commentPending.value = 0
+    recordPending.value = 0
     return
   }
-  const result = await countPendingComments()
+
+  const [comments, records] = await Promise.all([countPendingComments(), countPendingRecords()])
   // 拿不到就按 0 处理：角标是"提醒"，不该因为一次网络抖动弹错误
-  pendingCount.value = result.ok ? result.data : 0
+  commentPending.value = comments.ok ? comments.data : 0
+  recordPending.value = records.ok ? records.data : 0
 }
 
 // 登录 / 登出后立刻重算（登出后不能再显示别人的待审数）
@@ -221,9 +229,10 @@ async function onRefresh(): Promise<void> {
 
   <LoginDialog v-model:visible="loginVisible" />
   <ChangePasswordDialog v-model:visible="passwordVisible" />
-  <CommentReviewDialog
+  <ReviewDialog
     v-model:visible="reviewVisible"
-    :pending-count="pendingCount"
+    :comment-count="commentPending"
+    :record-count="recordPending"
     @changed="refreshPending"
   />
 </template>
