@@ -21,6 +21,8 @@ import { useAuthStore, useDatasetStore, type Advanced } from '@renderer/stores'
 import { imageUrl } from '@shared/media/url'
 import { deleteAdvanced } from '@shared/api/advanced'
 import { getReviewAdvanced, reviewRecord } from '@shared/api/review'
+import { getMyAdvanced, type AdvancedWithReview, type ReviewStatus } from '@shared/api/myRecords'
+import ReviewStamp from '@renderer/components/ReviewStamp.vue'
 import AuthorTag from '@renderer/components/AuthorTag.vue'
 
 const props = defineProps<{ category: string; id: string }>()
@@ -30,32 +32,70 @@ const dataset = useDatasetStore()
 const auth = useAuthStore()
 
 /**
- * 审核预览（T4.6）：待审记录不在快照里，管理员按 id 从 `get_review_record` 拉整行，
- * 这样详情页能展示大图与正文，看完直接通过/驳回。
+ * 审核预览 / 作者预览（T4.6 / T4.12）
+ *
+ * 待审与驳回的记录不在快照里，按 id 单独拉：
+ *   · 是我自己的 → `get_my_record`（带审核人信息），作者能看见自己的待审 / 驳回内容
+ *   · 不是我的 + 我是管理员 → `get_review_record`（审核预览，带通过 / 驳回按钮）
  */
+const myItem = ref<AdvancedWithReview | null>(null)
 const reviewItem = ref<Advanced | null>(null)
-const reviewLoading = ref(false)
+const extraLoading = ref(false)
 const reviewError = ref('')
 
-const item = computed(() => dataset.findAdvanced(props.id) ?? reviewItem.value)
+const inSnapshot = computed(() => dataset.findAdvanced(props.id))
+const item = computed<Advanced | null>(
+  () => inSnapshot.value ?? (myItem.value as Advanced | null) ?? reviewItem.value
+)
 
-const isReview = computed(() => !dataset.findAdvanced(props.id) && reviewItem.value !== null)
+const isMine = computed(() =>
+  Boolean(item.value?.owner_id && item.value.owner_id === auth.user?.id)
+)
+const myStatus = computed<ReviewStatus | null>(
+  () => (myItem.value?.review_status as ReviewStatus | undefined) ?? null
+)
+const isPending = computed(() => isMine.value && myStatus.value === 'pending')
+const isRejected = computed(() => isMine.value && myStatus.value === 'rejected')
 
-async function loadReviewRecord(): Promise<void> {
-  if (!dataset.isReady || !auth.isAdmin) return
-  if (dataset.findAdvanced(props.id)) return
+const isReview = computed(() => !inSnapshot.value && !isMine.value && reviewItem.value !== null)
 
-  reviewLoading.value = true
-  reviewError.value = ''
+async function loadExtra(): Promise<void> {
+  if (!dataset.isReady) return
 
-  const result = await getReviewAdvanced(props.id)
-  reviewLoading.value = false
+  const snapshot = dataset.findAdvanced(props.id)
 
-  if (!result.ok) {
-    reviewError.value = result.message
+  if (snapshot) {
+    if (auth.isSignedIn && snapshot.owner_id === auth.user?.id) {
+      const mine = await getMyAdvanced(props.id)
+      if (mine.ok) myItem.value = mine.data
+    }
     return
   }
-  reviewItem.value = result.data as Advanced
+
+  if (!auth.isSignedIn) return
+
+  extraLoading.value = true
+  reviewError.value = ''
+
+  const mine = await getMyAdvanced(props.id)
+  if (mine.ok) {
+    myItem.value = mine.data
+    extraLoading.value = false
+    return
+  }
+
+  if (auth.isAdmin) {
+    const result = await getReviewAdvanced(props.id)
+    extraLoading.value = false
+    if (!result.ok) {
+      reviewError.value = result.message
+      return
+    }
+    reviewItem.value = result.data as Advanced
+    return
+  }
+
+  extraLoading.value = false
 }
 
 async function approveReview(): Promise<void> {
@@ -94,12 +134,13 @@ async function rejectReview(): Promise<void> {
 }
 
 watch(
-  // 三个都可能是"晚到"的：路由 id、快照、登录态（auth 是异步初始化的）
-  () => [props.id, dataset.isReady, auth.isAdmin],
+  // 四个都可能是"晚到"的：路由 id、快照、登录态、当前用户
+  () => [props.id, dataset.isReady, auth.isAdmin, auth.user?.id],
   () => {
+    myItem.value = null
     reviewItem.value = null
     reviewError.value = ''
-    void loadReviewRecord()
+    void loadExtra()
   },
   { immediate: true }
 )
@@ -159,6 +200,9 @@ async function onDelete(): Promise<void> {
 
 async function onSaved(): Promise<void> {
   await dataset.sync(true)
+  // 编辑后可能从 rejected 变回 pending，状态条要跟着变
+  myItem.value = null
+  void loadExtra()
 }
 </script>
 
@@ -172,13 +216,14 @@ async function onSaved(): Promise<void> {
         </span>
       </el-button>
 
+      <!-- 待审期间不能改内容（服务端也会拒 PENDING_LOCKED），但允许删除 -->
       <div v-if="canManage && !isReview" class="detail__actions">
-        <el-button @click="formVisible = true">编辑</el-button>
+        <el-button v-if="!isPending" @click="formVisible = true">编辑</el-button>
         <el-button type="danger" plain @click="onDelete">删除</el-button>
       </div>
     </header>
 
-    <div v-if="!dataset.isReady || reviewLoading" class="state">
+    <div v-if="!dataset.isReady || extraLoading" class="state">
       <el-skeleton :rows="5" animated />
       <p class="state__text">数据还没同步完成，稍等一下…</p>
     </div>
@@ -188,6 +233,26 @@ async function onSaved(): Promise<void> {
     </el-empty>
 
     <article v-else class="detail__body card">
+      <!-- 作者视角：待审 / 驳回时的状态条（T4.12 / T4.13） -->
+      <div v-if="isPending" class="status-bar">
+        <span class="status-bar__text">这条进阶正在审核中，审核期间不能修改</span>
+        <el-tag size="small" type="warning" effect="plain">待审核</el-tag>
+      </div>
+      <div v-else-if="isRejected" class="status-bar status-bar--rejected">
+        <div class="status-bar__main">
+          <span class="status-bar__text">
+            未通过审核<template v-if="myItem?.review_note">：{{ myItem.review_note }}</template>
+          </span>
+          <ReviewStamp
+            :name="myItem?.reviewer_name"
+            :role="myItem?.reviewer_role"
+            :at="myItem?.reviewed_at"
+            status="rejected"
+          />
+        </div>
+        <span class="status-bar__text">可以修改后重新提交审核</span>
+      </div>
+
       <!-- 审核预览：快照里没有的待审记录，看完直接通过/驳回 -->
       <div v-if="isReview" class="review-bar">
         <span class="review-bar__text">这条进阶还没通过审核，下面是完整预览（含大图）</span>
@@ -202,6 +267,15 @@ async function onSaved(): Promise<void> {
         <span>作者：<AuthorTag :name="item.updated_by" :deleted="item.author_deleted" /></span>
         <span>更新时间：{{ updatedText }}</span>
       </p>
+
+      <!-- 已发布 + 是我自己的：显示审核回显（别人看不到） -->
+      <ReviewStamp
+        v-if="isMine && !isPending && !isRejected && myItem?.reviewed_at"
+        :name="myItem?.reviewer_name"
+        :role="myItem?.reviewer_role"
+        :at="myItem?.reviewed_at"
+        status="visible"
+      />
 
       <button
         class="detail__media"
@@ -229,7 +303,7 @@ async function onSaved(): Promise<void> {
     </article>
 
     <CommentSection
-      v-if="dataset.isReady && item && !isReview"
+      v-if="dataset.isReady && item && inSnapshot"
       class="detail__comments"
       type="advanced"
       :target-id="item.id"
@@ -371,6 +445,33 @@ async function onSaved(): Promise<void> {
   /* 注解里可能有手工换行 */
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* 作者视角的状态条：待审 / 未通过 */
+.status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  font-size: var(--font-size-sm);
+  color: var(--text-1);
+  background: color-mix(in srgb, var(--warning, #e9af20) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning, #e9af20) 35%, transparent);
+  border-radius: var(--radius-md);
+}
+
+.status-bar--rejected {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
+.status-bar__main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
 }
 
 /* 审核预览条 */

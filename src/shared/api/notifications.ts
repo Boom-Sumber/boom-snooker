@@ -11,7 +11,12 @@
 import { supabase } from './client'
 
 export type NotificationKind =
-  'comment_visible' | 'comment_rejected' | 'record_visible' | 'record_rejected' | 'system'
+  | 'comment_visible'
+  | 'comment_rejected'
+  | 'record_visible'
+  | 'record_rejected'
+  | 'system'
+  | 'role_changed'
 
 /** 列表范围：全部 / 只看审核结果 / 只看系统通知 */
 export type NotificationScope = 'all' | 'review' | 'system'
@@ -75,6 +80,28 @@ export async function countUnreadNotifications(): Promise<NotificationResult<num
   const { data, error } = await rpc('count_unread_notifications')
   if (error) return { ok: false, message: translateNotificationError(error.message ?? '') }
   return { ok: true, data: Number(data ?? 0) }
+}
+
+/** 通知条数（全部 / 系统类 / 未读），用于弹窗页签上的数字 */
+export interface NotificationCounts {
+  all: number
+  system: number
+  unread: number
+}
+
+export async function notificationCounts(): Promise<NotificationResult<NotificationCounts>> {
+  const { data, error } = await rpc('notification_counts')
+  if (error) return { ok: false, message: translateNotificationError(error.message ?? '') }
+
+  const raw = (data ?? {}) as Partial<NotificationCounts>
+  return {
+    ok: true,
+    data: {
+      all: Number(raw.all ?? 0),
+      system: Number(raw.system ?? 0),
+      unread: Number(raw.unread ?? 0)
+    }
+  }
 }
 
 /** 标已读：不传 ids = 全部已读 */

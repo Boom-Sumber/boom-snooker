@@ -73,6 +73,13 @@ export const router = createRouter({
           meta: { title: '进阶详情' }
         },
         {
+          // 我的投稿（T4.12）：待审 / 驳回的记录不在快照里，作者从这里看
+          path: 'my-submissions',
+          name: 'my-submissions',
+          component: () => import('@renderer/views/MySubmissionsView.vue'),
+          meta: { title: '我的投稿' }
+        },
+        {
           // 通知页（T4.9）：审核结果与系统通知的完整历史；超管在这里发系统通知
           path: 'notifications',
           name: 'notifications',

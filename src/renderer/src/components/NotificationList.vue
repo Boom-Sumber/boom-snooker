@@ -8,7 +8,7 @@
  *
  * 通知只属于本人：列表、审核人、驳回原因都由服务端按 `auth.uid()` 过滤，前端不做权限判断。
  */
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useDatasetStore } from '@renderer/stores'
@@ -98,7 +98,7 @@ async function open(item: NotificationItem): Promise<void> {
     const result = await markNotificationsRead([item.id])
     if (result.ok) {
       item.read_at = new Date().toISOString()
-      emit('changed')
+      notifyChanged()
     }
   }
 
@@ -137,7 +137,7 @@ async function remove(item: NotificationItem): Promise<void> {
     return
   }
   items.value = items.value.filter((i) => i.id !== item.id)
-  emit('changed')
+  notifyChanged()
 }
 
 async function markAll(): Promise<void> {
@@ -147,7 +147,7 @@ async function markAll(): Promise<void> {
     return
   }
   ElMessage.success('已全部标为已读')
-  emit('changed')
+  notifyChanged()
   await load()
 }
 
@@ -165,11 +165,37 @@ async function clearRead(): Promise<void> {
     return
   }
   ElMessage.success(`已清空 ${result.data} 条已读通知`)
-  emit('changed')
+  notifyChanged()
   await load()
 }
 
-onMounted(load)
+/**
+ * 自己改完通知（已读 / 删除）后，通知页和顶栏都要跟着变。
+ * 弹窗与「更多 → 通知」是两个组件实例，靠全局事件互相同步；
+ * `selfDispatch` 用来避免自己发的通知又让自己重拉一遍。
+ */
+let selfDispatch = false
+
+function notifyChanged(): void {
+  emit('changed')
+  selfDispatch = true
+  window.dispatchEvent(new Event('snooker:notifications-changed'))
+  selfDispatch = false
+}
+
+function onExternalChange(): void {
+  if (selfDispatch) return
+  void load()
+}
+
+onMounted(() => {
+  void load()
+  window.addEventListener('snooker:notifications-changed', onExternalChange)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('snooker:notifications-changed', onExternalChange)
+})
 
 watch(
   () => [props.refreshToken, props.scope],
@@ -216,7 +242,12 @@ watch(
           <span class="note__body">
             <span class="note__title">
               {{ item.title }}
-              <el-tag v-if="item.kind === 'system'" size="small" type="warning" effect="plain">
+              <el-tag
+                v-if="item.kind === 'system' || item.kind === 'role_changed'"
+                size="small"
+                type="warning"
+                effect="plain"
+              >
                 系统
               </el-tag>
               <el-tag
@@ -231,15 +262,16 @@ watch(
             </span>
             <span v-if="item.body" class="note__text">{{ item.body }}</span>
             <span class="note__meta">
-              <!-- 审核人 + 审核时间：只有通知所有者能看到（T4.10）；系统通知显示发布人与发布时间 -->
-              <template v-if="item.kind === 'system'">
+              <!-- 系统 / 角色变更：发布人 + 发布时间；审核结果：审核人 + 审核时间。
+                   两组都带标签，宽度一致才会在同一行对齐 -->
+              <template v-if="item.kind === 'system' || item.kind === 'role_changed'">
                 <span v-if="item.reviewer_name">发布人：{{ item.reviewer_name }}</span>
-                <span class="note__time">{{ formatTime(item.created_at) }}</span>
+                <span>发布时间：{{ formatTime(item.created_at) }}</span>
               </template>
               <template v-else>
                 <span v-if="item.reviewer_name">审核人：{{ item.reviewer_name }}</span>
                 <span v-if="item.reviewed_at">审核时间：{{ formatTime(item.reviewed_at) }}</span>
-                <span v-else class="note__time">{{ formatTime(item.created_at) }}</span>
+                <span v-else>时间：{{ formatTime(item.created_at) }}</span>
               </template>
             </span>
           </span>
@@ -365,9 +397,15 @@ watch(
 .note__meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.125rem 0.75rem;
+  gap: 0.125rem 0.875rem;
+  align-items: center;
   font-size: var(--font-size-sm);
   color: var(--text-3);
+}
+
+/* 每段不换行：时间不会被拆成两行，两段才可能在同一行对齐 */
+.note__meta > span {
+  white-space: nowrap;
 }
 
 .note__time {

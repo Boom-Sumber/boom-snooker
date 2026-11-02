@@ -87,6 +87,12 @@ export const navGroups: NavGroup[] = [
     items: [
       // 通知：审核结果 + 系统通知的历史（T4.9）
       { label: '通知', path: '/notifications' },
+      // 我的投稿（T4.12）：待审 / 驳回的记录不在快照里，作者只能从这里看
+      {
+        label: '我的投稿',
+        path: '/my-submissions',
+        roles: ['viewer', 'advanced', 'admin', 'superadmin']
+      },
       // 用户资料和顶栏头像菜单指向同一页（旧版也是两处入口）
       { label: '用户资料', path: '/account' },
       { label: '小键盘设置', path: '/keyboard' },

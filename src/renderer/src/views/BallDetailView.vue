@@ -26,6 +26,8 @@ import { useAuthStore, useDatasetStore, type Ball } from '@renderer/stores'
 import { imageUrl } from '@shared/media/url'
 import { deleteBall } from '@shared/api/balls'
 import { getReviewBall, reviewRecord } from '@shared/api/review'
+import { getMyBall, type BallWithReview, type ReviewStatus } from '@shared/api/myRecords'
+import ReviewStamp from '@renderer/components/ReviewStamp.vue'
 import AuthorTag from '@renderer/components/AuthorTag.vue'
 
 const props = defineProps<{ color: string; id: string }>()
@@ -35,37 +37,76 @@ const dataset = useDatasetStore()
 const auth = useAuthStore()
 
 /**
- * 审核预览（T4.6）
+ * 审核预览 / 作者预览（T4.6 / T4.12）
  *
- * 待审记录**不在快照里**，正常路径取不到 → 管理员按 id 从 `get_review_record` 拉整行，
- * 这样详情页能把图和正文完整展示出来，看完直接通过/驳回。
- * 只看文字预览是判断不了打法好坏的（这是用户提的第一个问题）。
+ * 待审与驳回的记录**不在快照里**，所以要按 id 单独拉：
+ *   · 是我自己的 → `get_my_record`（带审核人信息），作者能看见自己的待审 / 驳回内容
+ *   · 不是我的 + 我是管理员 → `get_review_record`（审核预览，带通过 / 驳回按钮）
  */
+const myBall = ref<BallWithReview | null>(null)
 const reviewBall = ref<Ball | null>(null)
-const reviewLoading = ref(false)
+const extraLoading = ref(false)
 const reviewError = ref('')
 
-const ball = computed(() => dataset.findBall(props.id) ?? reviewBall.value)
+const inSnapshot = computed(() => dataset.findBall(props.id))
+const ball = computed<Ball | null>(
+  () => inSnapshot.value ?? (myBall.value as Ball | null) ?? reviewBall.value
+)
 
-/** 走的是"审核预览"分支：快照里没有、但拉到了待审记录 */
-const isReview = computed(() => !dataset.findBall(props.id) && reviewBall.value !== null)
+/** 是我自己的记录（快照里或单独拉到的都算） */
+const isMine = computed(() =>
+  Boolean(ball.value?.owner_id && ball.value.owner_id === auth.user?.id)
+)
+/** 我的这条记录当前状态：只有作者自己拉到的 myBall 才有 */
+const myStatus = computed<ReviewStatus | null>(
+  () => (myBall.value?.review_status as ReviewStatus | undefined) ?? null
+)
+const isPending = computed(() => isMine.value && myStatus.value === 'pending')
+const isRejected = computed(() => isMine.value && myStatus.value === 'rejected')
 
-async function loadReviewRecord(): Promise<void> {
-  // 快照还没就绪时不要急着判定"不存在"，等 isReady 再拉
-  if (!dataset.isReady || !auth.isAdmin) return
-  if (dataset.findBall(props.id)) return
+/** 管理员审核预览：快照没有、不是我的、但拉到了待审行 */
+const isReview = computed(() => !inSnapshot.value && !isMine.value && reviewBall.value !== null)
 
-  reviewLoading.value = true
-  reviewError.value = ''
+async function loadExtra(): Promise<void> {
+  if (!dataset.isReady) return
 
-  const result = await getReviewBall(props.id)
-  reviewLoading.value = false
+  const snapshot = dataset.findBall(props.id)
 
-  if (!result.ok) {
-    reviewError.value = result.message
+  // 快照里有的：只有作者需要补审核信息（别人拿不到，服务端会拒）
+  if (snapshot) {
+    if (auth.isSignedIn && snapshot.owner_id === auth.user?.id) {
+      const mine = await getMyBall(props.id)
+      if (mine.ok) myBall.value = mine.data
+    }
     return
   }
-  reviewBall.value = result.data as Ball
+
+  if (!auth.isSignedIn) return
+
+  extraLoading.value = true
+  reviewError.value = ''
+
+  // 先按"我的投稿"取：作者能看到自己的待审 / 驳回
+  const mine = await getMyBall(props.id)
+  if (mine.ok) {
+    myBall.value = mine.data
+    extraLoading.value = false
+    return
+  }
+
+  // 不是我的：管理员可以走审核预览
+  if (auth.isAdmin) {
+    const result = await getReviewBall(props.id)
+    extraLoading.value = false
+    if (!result.ok) {
+      reviewError.value = result.message
+      return
+    }
+    reviewBall.value = result.data as Ball
+    return
+  }
+
+  extraLoading.value = false
 }
 
 /** 审核完回到列表：这条记录要么已发布、要么被驳回，都该离开详情页 */
@@ -109,12 +150,13 @@ async function rejectReview(): Promise<void> {
 }
 
 watch(
-  // 三个都可能是"晚到"的：路由 id、快照、登录态（auth 是异步初始化的）
-  () => [props.id, dataset.isReady, auth.isAdmin],
+  // 四个都可能是"晚到"的：路由 id、快照、登录态、当前用户
+  () => [props.id, dataset.isReady, auth.isAdmin, auth.user?.id],
   () => {
+    myBall.value = null
     reviewBall.value = null
     reviewError.value = ''
-    void loadReviewRecord()
+    void loadExtra()
   },
   { immediate: true }
 )
@@ -190,6 +232,9 @@ async function onDelete(): Promise<void> {
 
 async function onSaved(): Promise<void> {
   await dataset.sync(true)
+  // 编辑后可能从 rejected 变回 pending，状态条要跟着变
+  myBall.value = null
+  void loadExtra()
 }
 </script>
 
@@ -203,13 +248,14 @@ async function onSaved(): Promise<void> {
         </span>
       </el-button>
 
+      <!-- 待审期间不能改内容（服务端也会拒 PENDING_LOCKED），但允许删除 -->
       <div v-if="canManage && !isReview" class="detail__actions">
-        <el-button @click="formVisible = true">编辑</el-button>
+        <el-button v-if="!isPending" @click="formVisible = true">编辑</el-button>
         <el-button type="danger" plain @click="onDelete">删除</el-button>
       </div>
     </header>
 
-    <div v-if="!dataset.isReady || reviewLoading" class="state">
+    <div v-if="!dataset.isReady || extraLoading" class="state">
       <el-skeleton :rows="5" animated />
       <p class="state__text">数据还没同步完成，稍等一下…</p>
     </div>
@@ -219,6 +265,26 @@ async function onSaved(): Promise<void> {
     </el-empty>
 
     <article v-else class="detail__body card">
+      <!-- 作者视角：待审 / 驳回时的状态条（T4.12 / T4.13） -->
+      <div v-if="isPending" class="status-bar">
+        <span class="status-bar__text">这条打法正在审核中，审核期间不能修改</span>
+        <el-tag size="small" type="warning" effect="plain">待审核</el-tag>
+      </div>
+      <div v-else-if="isRejected" class="status-bar status-bar--rejected">
+        <div class="status-bar__main">
+          <span class="status-bar__text">
+            未通过审核<template v-if="myBall?.review_note">：{{ myBall.review_note }}</template>
+          </span>
+          <ReviewStamp
+            :name="myBall?.reviewer_name"
+            :role="myBall?.reviewer_role"
+            :at="myBall?.reviewed_at"
+            status="rejected"
+          />
+        </div>
+        <span class="status-bar__text">可以修改后重新提交审核</span>
+      </div>
+
       <!-- 审核预览：快照里没有的待审记录，看完直接通过/驳回 -->
       <div v-if="isReview" class="review-bar">
         <span class="review-bar__text">这条打法还没通过审核，下面是完整预览（含图片）</span>
@@ -244,6 +310,15 @@ async function onSaved(): Promise<void> {
         <span>作者：<AuthorTag :name="ball.updated_by" :deleted="ball.author_deleted" /></span>
         <span>更新时间：{{ updatedText }}</span>
       </p>
+
+      <!-- 已发布 + 是我自己的：显示审核回显（别人看不到） -->
+      <ReviewStamp
+        v-if="isMine && !isPending && !isRejected && myBall?.reviewed_at"
+        :name="myBall?.reviewer_name"
+        :role="myBall?.reviewer_role"
+        :at="myBall?.reviewed_at"
+        status="visible"
+      />
 
       <!-- 文字在上，图片在下 -->
       <dl class="detail__fields">
@@ -308,7 +383,7 @@ async function onSaved(): Promise<void> {
     </article>
 
     <CommentSection
-      v-if="dataset.isReady && ball && !isReview"
+      v-if="dataset.isReady && ball && inSnapshot"
       class="detail__comments"
       type="ball"
       :target-id="ball.id"
@@ -543,6 +618,33 @@ async function onSaved(): Promise<void> {
   /* 走位说明有手工换行 */
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* 作者视角的状态条：待审 / 未通过 */
+.status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  font-size: var(--font-size-sm);
+  color: var(--text-1);
+  background: color-mix(in srgb, var(--warning, #e9af20) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning, #e9af20) 35%, transparent);
+  border-radius: var(--radius-md);
+}
+
+.status-bar--rejected {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
+.status-bar__main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
 }
 
 /* 审核预览条：和正文同一张卡里，一眼能看出"这不是正式内容" */
