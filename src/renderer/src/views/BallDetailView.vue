@@ -15,16 +15,17 @@
  *
  * 数据不额外请求：按 id 从本地快照取（`dataset.findBall`），离线也能看。
  */
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElImageViewer, ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeftBold } from '@element-plus/icons-vue'
 import BallFormDialog from '@renderer/components/BallFormDialog.vue'
 import CommentSection from '@renderer/components/CommentSection.vue'
 import { BALL_LABELS } from '@renderer/navigation/menu'
-import { useAuthStore, useDatasetStore } from '@renderer/stores'
+import { useAuthStore, useDatasetStore, type Ball } from '@renderer/stores'
 import { imageUrl } from '@shared/media/url'
 import { deleteBall } from '@shared/api/balls'
+import { getReviewBall, reviewRecord } from '@shared/api/review'
 import AuthorTag from '@renderer/components/AuthorTag.vue'
 
 const props = defineProps<{ color: string; id: string }>()
@@ -33,7 +34,90 @@ const router = useRouter()
 const dataset = useDatasetStore()
 const auth = useAuthStore()
 
-const ball = computed(() => dataset.findBall(props.id))
+/**
+ * 审核预览（T4.6）
+ *
+ * 待审记录**不在快照里**，正常路径取不到 → 管理员按 id 从 `get_review_record` 拉整行，
+ * 这样详情页能把图和正文完整展示出来，看完直接通过/驳回。
+ * 只看文字预览是判断不了打法好坏的（这是用户提的第一个问题）。
+ */
+const reviewBall = ref<Ball | null>(null)
+const reviewLoading = ref(false)
+const reviewError = ref('')
+
+const ball = computed(() => dataset.findBall(props.id) ?? reviewBall.value)
+
+/** 走的是"审核预览"分支：快照里没有、但拉到了待审记录 */
+const isReview = computed(() => !dataset.findBall(props.id) && reviewBall.value !== null)
+
+async function loadReviewRecord(): Promise<void> {
+  // 快照还没就绪时不要急着判定"不存在"，等 isReady 再拉
+  if (!dataset.isReady || !auth.isAdmin) return
+  if (dataset.findBall(props.id)) return
+
+  reviewLoading.value = true
+  reviewError.value = ''
+
+  const result = await getReviewBall(props.id)
+  reviewLoading.value = false
+
+  if (!result.ok) {
+    reviewError.value = result.message
+    return
+  }
+  reviewBall.value = result.data as Ball
+}
+
+/** 审核完回到列表：这条记录要么已发布、要么被驳回，都该离开详情页 */
+function backAfterReview(): void {
+  // 对话框没开，靠全局事件让顶栏角标立刻减一
+  window.dispatchEvent(new Event('snooker:review-changed'))
+  goBack()
+}
+
+async function approveReview(): Promise<void> {
+  if (!reviewBall.value) return
+  const result = await reviewRecord('ball', reviewBall.value.id, 'visible')
+  if (!result.ok) {
+    ElMessage.error(result.message)
+    return
+  }
+  ElMessage.success('已通过，这条打法已发布')
+  await dataset.sync(true)
+  backAfterReview()
+}
+
+async function rejectReview(): Promise<void> {
+  if (!reviewBall.value) return
+
+  const answer = await ElMessageBox.prompt('驳回原因会通知给作者', '驳回这条打法', {
+    confirmButtonText: '驳回',
+    cancelButtonText: '取消',
+    inputType: 'textarea',
+    inputPlaceholder: '比如：图片不清晰 / 描述与图片不符',
+    inputValidator: (value: string) => (value && value.length > 200 ? '最多 200 字' : true)
+  }).catch(() => null)
+  if (!answer) return
+
+  const result = await reviewRecord('ball', reviewBall.value.id, 'rejected', answer.value ?? '')
+  if (!result.ok) {
+    ElMessage.error(result.message)
+    return
+  }
+  ElMessage.success('已驳回')
+  backAfterReview()
+}
+
+watch(
+  // 三个都可能是"晚到"的：路由 id、快照、登录态（auth 是异步初始化的）
+  () => [props.id, dataset.isReady, auth.isAdmin],
+  () => {
+    reviewBall.value = null
+    reviewError.value = ''
+    void loadReviewRecord()
+  },
+  { immediate: true }
+)
 
 const colorName = computed(() => BALL_LABELS[props.color] ?? dataset.dictName('color', props.color))
 
@@ -119,22 +203,30 @@ async function onSaved(): Promise<void> {
         </span>
       </el-button>
 
-      <div v-if="canManage" class="detail__actions">
+      <div v-if="canManage && !isReview" class="detail__actions">
         <el-button @click="formVisible = true">编辑</el-button>
         <el-button type="danger" plain @click="onDelete">删除</el-button>
       </div>
     </header>
 
-    <div v-if="!dataset.isReady" class="state">
+    <div v-if="!dataset.isReady || reviewLoading" class="state">
       <el-skeleton :rows="5" animated />
       <p class="state__text">数据还没同步完成，稍等一下…</p>
     </div>
 
-    <el-empty v-else-if="!ball" description="这条打法不存在，或已被作者删除">
+    <el-empty v-else-if="!ball" :description="reviewError || '这条打法不存在，或已被作者删除'">
       <el-button type="primary" @click="goBack">返回列表</el-button>
     </el-empty>
 
     <article v-else class="detail__body card">
+      <!-- 审核预览：快照里没有的待审记录，看完直接通过/驳回 -->
+      <div v-if="isReview" class="review-bar">
+        <span class="review-bar__text">这条打法还没通过审核，下面是完整预览（含图片）</span>
+        <div class="review-bar__actions">
+          <el-button size="small" @click="rejectReview">驳回</el-button>
+          <el-button size="small" type="primary" @click="approveReview">通过</el-button>
+        </div>
+      </div>
       <!-- 标题行：左「力度 + 进袋方式」，右上「什么球 / 哪个袋」用胶囊标出来 -->
       <header class="detail__head">
         <h1 class="detail__title">
@@ -216,7 +308,7 @@ async function onSaved(): Promise<void> {
     </article>
 
     <CommentSection
-      v-if="dataset.isReady && ball"
+      v-if="dataset.isReady && ball && !isReview"
       class="detail__comments"
       type="ball"
       :target-id="ball.id"
@@ -451,6 +543,26 @@ async function onSaved(): Promise<void> {
   /* 走位说明有手工换行 */
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* 审核预览条：和正文同一张卡里，一眼能看出"这不是正式内容" */
+.review-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  font-size: var(--font-size-sm);
+  color: var(--text-1);
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+  border-radius: var(--radius-md);
+}
+
+.review-bar__actions {
+  display: flex;
+  gap: 0.5rem;
 }
 
 /* 评论区：与正文同宽，挂在页面底部 */

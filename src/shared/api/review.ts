@@ -11,6 +11,7 @@
  * 所以审核成功后调用方要主动 `dataset.sync(true)`，否则列表页看不到这条新记录。
  */
 import { supabase } from './client'
+import type { Tables } from '../types/db'
 
 export type ReviewDecision = 'visible' | 'rejected'
 
@@ -80,6 +81,37 @@ export async function countPendingRecords(): Promise<ReviewResult<number>> {
   const { data, error } = await rpc('count_pending_records')
   if (error) return { ok: false, message: translateReviewError(error.message ?? '') }
   return { ok: true, data: Number(data ?? 0) }
+}
+
+/**
+ * 取单条**待审**记录（详情页审核预览用，T4.6）
+ *
+ * 详情页平时读本地快照，待审记录不在里面 → 打不开。
+ * 这个接口让管理员按 id 拿到整行（含图片路径），在详情页里像正常内容一样看，
+ * 看完直接通过/驳回 —— 只看文字预览是判断不了打法好坏的。
+ */
+async function getReviewRecordRow(
+  type: 'ball' | 'advanced',
+  id: string
+): Promise<ReviewResult<Record<string, unknown>>> {
+  const { data, error } = await rpc('get_review_record', { p_type: type, p_id: id })
+  if (error) return { ok: false, message: translateReviewError(error.message ?? '') }
+  if (!data) return { ok: false, message: '这条内容已经不在待审队列里了' }
+  return { ok: true, data: data as Record<string, unknown> }
+}
+
+/** 待审彩球（返回结构与快照行一致，可直接喂给详情页） */
+export async function getReviewBall(id: string): Promise<ReviewResult<Tables<'balls'>>> {
+  const result = await getReviewRecordRow('ball', id)
+  if (!result.ok) return result
+  return { ok: true, data: result.data as unknown as Tables<'balls'> }
+}
+
+/** 待审进阶 */
+export async function getReviewAdvanced(id: string): Promise<ReviewResult<Tables<'advanced'>>> {
+  const result = await getReviewRecordRow('advanced', id)
+  if (!result.ok) return result
+  return { ok: true, data: result.data as unknown as Tables<'advanced'> }
 }
 
 /**

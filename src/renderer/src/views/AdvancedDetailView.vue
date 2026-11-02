@@ -10,16 +10,17 @@
  * 数据不额外请求：按 id 从本地快照里取（`dataset.findAdvanced`），
  * 离线也能看；取不到时区分「还没同步完」和「确实不存在」。
  */
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElImageViewer, ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeftBold } from '@element-plus/icons-vue'
 import AdvancedFormDialog from '@renderer/components/AdvancedFormDialog.vue'
 import CommentSection from '@renderer/components/CommentSection.vue'
 import { CATEGORY_LABELS } from '@renderer/navigation/menu'
-import { useAuthStore, useDatasetStore } from '@renderer/stores'
+import { useAuthStore, useDatasetStore, type Advanced } from '@renderer/stores'
 import { imageUrl } from '@shared/media/url'
 import { deleteAdvanced } from '@shared/api/advanced'
+import { getReviewAdvanced, reviewRecord } from '@shared/api/review'
 import AuthorTag from '@renderer/components/AuthorTag.vue'
 
 const props = defineProps<{ category: string; id: string }>()
@@ -28,11 +29,84 @@ const router = useRouter()
 const dataset = useDatasetStore()
 const auth = useAuthStore()
 
+/**
+ * 审核预览（T4.6）：待审记录不在快照里，管理员按 id 从 `get_review_record` 拉整行，
+ * 这样详情页能展示大图与正文，看完直接通过/驳回。
+ */
+const reviewItem = ref<Advanced | null>(null)
+const reviewLoading = ref(false)
+const reviewError = ref('')
+
+const item = computed(() => dataset.findAdvanced(props.id) ?? reviewItem.value)
+
+const isReview = computed(() => !dataset.findAdvanced(props.id) && reviewItem.value !== null)
+
+async function loadReviewRecord(): Promise<void> {
+  if (!dataset.isReady || !auth.isAdmin) return
+  if (dataset.findAdvanced(props.id)) return
+
+  reviewLoading.value = true
+  reviewError.value = ''
+
+  const result = await getReviewAdvanced(props.id)
+  reviewLoading.value = false
+
+  if (!result.ok) {
+    reviewError.value = result.message
+    return
+  }
+  reviewItem.value = result.data as Advanced
+}
+
+async function approveReview(): Promise<void> {
+  if (!reviewItem.value) return
+  const result = await reviewRecord('advanced', reviewItem.value.id, 'visible')
+  if (!result.ok) {
+    ElMessage.error(result.message)
+    return
+  }
+  ElMessage.success('已通过，这条进阶已发布')
+  await dataset.sync(true)
+  window.dispatchEvent(new Event('snooker:review-changed'))
+  goBack()
+}
+
+async function rejectReview(): Promise<void> {
+  if (!reviewItem.value) return
+
+  const answer = await ElMessageBox.prompt('驳回原因会通知给作者', '驳回这条进阶', {
+    confirmButtonText: '驳回',
+    cancelButtonText: '取消',
+    inputType: 'textarea',
+    inputPlaceholder: '比如：图片不清晰 / 描述与图片不符',
+    inputValidator: (value: string) => (value && value.length > 200 ? '最多 200 字' : true)
+  }).catch(() => null)
+  if (!answer) return
+
+  const result = await reviewRecord('advanced', reviewItem.value.id, 'rejected', answer.value ?? '')
+  if (!result.ok) {
+    ElMessage.error(result.message)
+    return
+  }
+  ElMessage.success('已驳回')
+  window.dispatchEvent(new Event('snooker:review-changed'))
+  goBack()
+}
+
+watch(
+  // 三个都可能是"晚到"的：路由 id、快照、登录态（auth 是异步初始化的）
+  () => [props.id, dataset.isReady, auth.isAdmin],
+  () => {
+    reviewItem.value = null
+    reviewError.value = ''
+    void loadReviewRecord()
+  },
+  { immediate: true }
+)
+
 const categoryName = computed(
   () => CATEGORY_LABELS[props.category] ?? dataset.dictName('category', props.category)
 )
-
-const item = computed(() => dataset.findAdvanced(props.id))
 
 const image = computed(() => (item.value ? imageUrl(item.value.image) : ''))
 
@@ -98,22 +172,31 @@ async function onSaved(): Promise<void> {
         </span>
       </el-button>
 
-      <div v-if="canManage" class="detail__actions">
+      <div v-if="canManage && !isReview" class="detail__actions">
         <el-button @click="formVisible = true">编辑</el-button>
         <el-button type="danger" plain @click="onDelete">删除</el-button>
       </div>
     </header>
 
-    <div v-if="!dataset.isReady" class="state">
+    <div v-if="!dataset.isReady || reviewLoading" class="state">
       <el-skeleton :rows="5" animated />
       <p class="state__text">数据还没同步完成，稍等一下…</p>
     </div>
 
-    <el-empty v-else-if="!item" description="这条记录不存在，或已被作者删除">
+    <el-empty v-else-if="!item" :description="reviewError || '这条记录不存在，或已被作者删除'">
       <el-button type="primary" @click="goBack">返回列表</el-button>
     </el-empty>
 
     <article v-else class="detail__body card">
+      <!-- 审核预览：快照里没有的待审记录，看完直接通过/驳回 -->
+      <div v-if="isReview" class="review-bar">
+        <span class="review-bar__text">这条进阶还没通过审核，下面是完整预览（含大图）</span>
+        <div class="review-bar__actions">
+          <el-button size="small" @click="rejectReview">驳回</el-button>
+          <el-button size="small" type="primary" @click="approveReview">通过</el-button>
+        </div>
+      </div>
+
       <h1 class="detail__title">{{ item.title }}</h1>
       <p class="detail__meta">
         <span>作者：<AuthorTag :name="item.updated_by" :deleted="item.author_deleted" /></span>
@@ -146,7 +229,7 @@ async function onSaved(): Promise<void> {
     </article>
 
     <CommentSection
-      v-if="dataset.isReady && item"
+      v-if="dataset.isReady && item && !isReview"
       class="detail__comments"
       type="advanced"
       :target-id="item.id"
@@ -288,6 +371,26 @@ async function onSaved(): Promise<void> {
   /* 注解里可能有手工换行 */
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* 审核预览条 */
+.review-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  font-size: var(--font-size-sm);
+  color: var(--text-1);
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+  border-radius: var(--radius-md);
+}
+
+.review-bar__actions {
+  display: flex;
+  gap: 0.5rem;
 }
 
 /* 评论区：与正文同宽，挂在页面底部 */

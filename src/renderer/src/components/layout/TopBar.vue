@@ -6,9 +6,10 @@ import { ElMessage } from 'element-plus'
 import AppIcon from '@renderer/components/AppIcon.vue'
 import LoginDialog from '@renderer/components/LoginDialog.vue'
 import ChangePasswordDialog from '@renderer/components/ChangePasswordDialog.vue'
-import ReviewDialog from '@renderer/components/ReviewDialog.vue'
+import NotificationCenterDialog from '@renderer/components/NotificationCenterDialog.vue'
 import { countPendingComments } from '@shared/api/comments'
 import { countPendingRecords } from '@shared/api/review'
+import { countUnreadNotifications } from '@shared/api/notifications'
 import { iconSize, type IconName } from '@renderer/icons'
 import { ROLE_LABELS } from '@renderer/navigation/menu'
 import { resolveAvatar } from '@renderer/assets/avatars'
@@ -32,11 +33,14 @@ onMounted(() => {
   pendingTimer = window.setInterval(() => {
     void refreshPending()
   }, 60_000)
+
+  window.addEventListener('snooker:review-changed', onReviewChanged)
 })
 
 onBeforeUnmount(() => {
   if (timer !== undefined) window.clearInterval(timer)
   if (pendingTimer !== undefined) window.clearInterval(pendingTimer)
+  window.removeEventListener('snooker:review-changed', onReviewChanged)
 })
 
 const pad = (value: number): string => String(value).padStart(2, '0')
@@ -88,32 +92,57 @@ async function onAccountCommand(command: string): Promise<void> {
   }
 }
 
-/** 待审数量（T4.3 评论 + T4.5 记录）：管理员才有，60 秒轮询一次 */
+/** 通知 + 待审数量（T4.7 / T4.3 / T4.5）：登录后 60 秒轮询一次 */
 const commentPending = ref(0)
 const recordPending = ref(0)
+const unreadCount = ref(0)
 const reviewVisible = ref(false)
 let pendingTimer: number | undefined
 
-/** 角标显示总数；分开存是因为对话框要按页签显示各自的数量 */
-const pendingCount = computed(() => commentPending.value + recordPending.value)
+/** 角标 = 未读通知 + 待审（待审数对非管理员服务端返回 0，所以直接相加就行） */
+const pendingCount = computed(() => unreadCount.value + commentPending.value + recordPending.value)
 
 async function refreshPending(): Promise<void> {
-  if (!auth.isAdmin) {
+  if (!auth.isSignedIn) {
+    unreadCount.value = 0
     commentPending.value = 0
     recordPending.value = 0
     return
   }
 
-  const [comments, records] = await Promise.all([countPendingComments(), countPendingRecords()])
+  const [comments, records, unread] = await Promise.all([
+    countPendingComments(),
+    countPendingRecords(),
+    countUnreadNotifications()
+  ])
   // 拿不到就按 0 处理：角标是"提醒"，不该因为一次网络抖动弹错误
   commentPending.value = comments.ok ? comments.data : 0
   recordPending.value = records.ok ? records.data : 0
+  unreadCount.value = unread.ok ? unread.data : 0
 }
 
-// 登录 / 登出后立刻重算（登出后不能再显示别人的待审数）
+/** 未登录点铃铛 = 去登录（没有账号就没有通知） */
+function openCenter(): void {
+  if (!auth.isSignedIn) {
+    loginVisible.value = true
+    return
+  }
+  reviewVisible.value = true
+}
+
+/**
+ * 详情页里直接审核完（T4.6 的审核预览）后，角标要立刻变。
+ * 那种情况对话框是关着的，`@changed` 传不回来，所以走一个全局事件。
+ */
+function onReviewChanged(): void {
+  void refreshPending()
+}
+
+// 登录 / 登出后立刻重算（登出后不能再显示别人的通知数），并把通知中心关掉
 watch(
-  () => auth.isAdmin,
+  () => auth.user?.id ?? null,
   () => {
+    reviewVisible.value = false
     void refreshPending()
   }
 )
@@ -200,11 +229,16 @@ async function onRefresh(): Promise<void> {
       <button
         class="icon-btn"
         type="button"
-        :disabled="!auth.isAdmin"
         :title="
-          auth.isAdmin ? (pendingCount > 0 ? `待审 ${pendingCount} 条` : '暂无待审') : '暂无待审'
+          !auth.isSignedIn
+            ? '登录后查看通知'
+            : pendingCount > 0
+              ? auth.isAdmin
+                ? `${pendingCount} 条未读或待审`
+                : `${pendingCount} 条未读通知`
+              : '通知中心'
         "
-        @click="auth.isAdmin && (reviewVisible = true)"
+        @click="openCenter"
       >
         <el-badge :value="pendingCount" :max="99" :hidden="pendingCount === 0" :offset="[-2, 2]">
           <AppIcon name="bell" size="1.125rem" />
@@ -229,8 +263,9 @@ async function onRefresh(): Promise<void> {
 
   <LoginDialog v-model:visible="loginVisible" />
   <ChangePasswordDialog v-model:visible="passwordVisible" />
-  <ReviewDialog
+  <NotificationCenterDialog
     v-model:visible="reviewVisible"
+    :unread-count="unreadCount"
     :comment-count="commentPending"
     :record-count="recordPending"
     @changed="refreshPending"
