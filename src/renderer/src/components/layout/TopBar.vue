@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import AppIcon from '@renderer/components/AppIcon.vue'
 import LoginDialog from '@renderer/components/LoginDialog.vue'
 import ChangePasswordDialog from '@renderer/components/ChangePasswordDialog.vue'
+import CommentReviewDialog from '@renderer/components/CommentReviewDialog.vue'
+import { countPendingComments } from '@shared/api/comments'
 import { iconSize, type IconName } from '@renderer/icons'
 import { ROLE_LABELS } from '@renderer/navigation/menu'
 import { resolveAvatar } from '@renderer/assets/avatars'
@@ -23,10 +25,17 @@ onMounted(() => {
   timer = window.setInterval(() => {
     now.value = new Date()
   }, 1000)
+
+  // 待审角标：进页面先取一次，之后每分钟一次
+  void refreshPending()
+  pendingTimer = window.setInterval(() => {
+    void refreshPending()
+  }, 60_000)
 })
 
 onBeforeUnmount(() => {
   if (timer !== undefined) window.clearInterval(timer)
+  if (pendingTimer !== undefined) window.clearInterval(pendingTimer)
 })
 
 const pad = (value: number): string => String(value).padStart(2, '0')
@@ -78,8 +87,28 @@ async function onAccountCommand(command: string): Promise<void> {
   }
 }
 
-/** 待审数量：T4.3 接审核接口，0 时不显示红点 */
+/** 待审评论数（T4.3）：管理员才有，60 秒轮询一次 */
 const pendingCount = ref(0)
+const reviewVisible = ref(false)
+let pendingTimer: number | undefined
+
+async function refreshPending(): Promise<void> {
+  if (!auth.isAdmin) {
+    pendingCount.value = 0
+    return
+  }
+  const result = await countPendingComments()
+  // 拿不到就按 0 处理：角标是"提醒"，不该因为一次网络抖动弹错误
+  pendingCount.value = result.ok ? result.data : 0
+}
+
+// 登录 / 登出后立刻重算（登出后不能再显示别人的待审数）
+watch(
+  () => auth.isAdmin,
+  () => {
+    void refreshPending()
+  }
+)
 
 /** 手动同步：强制重下全量快照（T2.4） */
 const dataset = useDatasetStore()
@@ -160,11 +189,19 @@ async function onRefresh(): Promise<void> {
       <el-button @click="onRefresh">数据更新</el-button>
 
       <!-- 铃铛与主题按钮共用 .icon-btn：同样的 2rem 方形盒，垂直对齐才一致 -->
-      <span class="icon-btn" :title="pendingCount > 0 ? `待审 ${pendingCount} 条` : '暂无待审'">
-        <el-badge :is-dot="pendingCount > 0" :offset="[-2, 2]">
+      <button
+        class="icon-btn"
+        type="button"
+        :disabled="!auth.isAdmin"
+        :title="
+          auth.isAdmin ? (pendingCount > 0 ? `待审 ${pendingCount} 条` : '暂无待审') : '暂无待审'
+        "
+        @click="auth.isAdmin && (reviewVisible = true)"
+      >
+        <el-badge :value="pendingCount" :max="99" :hidden="pendingCount === 0" :offset="[-2, 2]">
           <AppIcon name="bell" size="1.125rem" />
         </el-badge>
-      </span>
+      </button>
 
       <button
         class="icon-btn"
@@ -184,6 +221,11 @@ async function onRefresh(): Promise<void> {
 
   <LoginDialog v-model:visible="loginVisible" />
   <ChangePasswordDialog v-model:visible="passwordVisible" />
+  <CommentReviewDialog
+    v-model:visible="reviewVisible"
+    :pending-count="pendingCount"
+    @changed="refreshPending"
+  />
 </template>
 
 <style scoped>

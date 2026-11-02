@@ -45,6 +45,28 @@ export interface CommentItem {
 
 export type CommentResult<T> = { ok: true; data: T } | { ok: false; message: string }
 
+/** `list_pending_comments` 的一行：待审评论 + 它挂在哪条记录上 */
+export interface PendingComment {
+  id: string
+  content: string
+  created_at: string
+  user_id: string
+  nickname: string
+  author_deleted: boolean
+  target_type: CommentTargetType
+  target_id: string
+  /** 彩球专属：颜色 / 袋口 code（前端用 `dataset.dictName` 映射成中文） */
+  target_color: string | null
+  target_pocket: string | null
+  target_method: string | null
+  /** 进阶专属：标题 / 系列 code */
+  target_title: string | null
+  target_category: string | null
+  total: number
+}
+
+export type ReviewDecision = 'visible' | 'rejected'
+
 type RpcCall = (
   fn: string,
   args?: Record<string, unknown>
@@ -68,6 +90,9 @@ export function translateCommentError(message: string): string {
   if (raw.includes('ACCOUNT_DISABLED')) return '账号已停用，请联系管理员'
   if (raw.includes('AUTH_REQUIRED')) return '请先登录再评论'
   if (raw.includes('BAD_TYPE') || raw.includes('BAD_TARGET')) return '评论目标不合法'
+  if (raw.includes('NOT_PENDING')) return '这条评论已经被处理过了'
+  if (raw.includes('BAD_DECISION')) return '审核结论不合法'
+  if (raw.includes('FORBIDDEN')) return '没有权限审核这条评论'
   if (raw.includes('Failed to fetch') || raw.includes('fetch failed')) {
     return '连不上服务器，检查一下网络'
   }
@@ -135,4 +160,50 @@ export async function getCommentCounts(
 
   const rows = (data ?? []) as { target_id: string; cnt: number }[]
   return { ok: true, data: new Map(rows.map((r) => [r.target_id, Number(r.cnt)])) }
+}
+
+/**
+ * 待审评论队列（管理员）
+ *
+ * 范围由服务端决定：admin 只看到自己邀请的人写的，超管只看直邀的（D28）。
+ * 非管理员调用会拿到 `FORBIDDEN`。
+ */
+export async function listPendingComments(
+  options: { limit?: number; offset?: number } = {}
+): Promise<CommentResult<{ items: PendingComment[]; total: number }>> {
+  const { data, error } = await rpc('list_pending_comments', {
+    p_limit: options.limit ?? 50,
+    p_offset: options.offset ?? 0
+  })
+  if (error) return { ok: false, message: translateCommentError(error.message ?? '') }
+
+  const items = (data ?? []) as PendingComment[]
+  return { ok: true, data: { items, total: items[0]?.total ?? 0 } }
+}
+
+/** 待审计数（顶部角标轮询用）；非管理员服务端直接返回 0 */
+export async function countPendingComments(): Promise<CommentResult<number>> {
+  const { data, error } = await rpc('count_pending_comments')
+  if (error) return { ok: false, message: translateCommentError(error.message ?? '') }
+  return { ok: true, data: Number(data ?? 0) }
+}
+
+/**
+ * 审核一条评论
+ *
+ * `decision` 只能是 `visible`（通过）/ `rejected`（驳回）；
+ * 服务端还会再校验一次"这条是不是你该审的"，前端过滤只是少犯错。
+ */
+export async function reviewComment(
+  id: string,
+  decision: ReviewDecision,
+  note = ''
+): Promise<CommentResult<null>> {
+  const { error } = await rpc('review_comment', {
+    p_id: id,
+    p_decision: decision,
+    p_note: note.trim() === '' ? null : note.trim()
+  })
+  if (error) return { ok: false, message: translateCommentError(error.message ?? '') }
+  return { ok: true, data: null }
 }
