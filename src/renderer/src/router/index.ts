@@ -73,6 +73,13 @@ export const router = createRouter({
           meta: { title: '进阶详情' }
         },
         {
+          // 通知页（T4.9）：审核结果与系统通知的完整历史；超管在这里发系统通知
+          path: 'notifications',
+          name: 'notifications',
+          component: () => import('@renderer/views/NotificationsView.vue'),
+          meta: { title: '通知' }
+        },
+        {
           // 小键盘设置（T3.7）：步骤截图按系统版本分两套
           path: 'keyboard',
           name: 'keyboard',

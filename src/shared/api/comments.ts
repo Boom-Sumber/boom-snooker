@@ -35,6 +35,9 @@ export interface CommentItem {
   author_deleted: boolean
   /** 驳回原因：只有自己的评论才有值，别人的恒为 null */
   review_note: string | null
+  /** 谁审的 + 审核时间：同样只给自己的评论（T4.10） */
+  reviewer_name: string | null
+  reviewed_at: string | null
   /**
    * 当前调用者可见的总条数（不是全表）。
    * 注意：**这一页为空时 total 为 0**（窗口函数数不到行），

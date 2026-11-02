@@ -35,7 +35,7 @@ const dialogVisible = computed({
   set: (value: boolean) => emit('update:visible', value)
 })
 
-const tab = ref<'notify' | 'review'>('notify')
+const tab = ref<'notify' | 'system' | 'review'>('notify')
 
 /** 每次打开 +1，让两个列表都重新拉一次 */
 const refreshToken = ref(0)
@@ -74,6 +74,16 @@ watch(
     <el-tabs v-model="tab">
       <el-tab-pane :label="notifyLabel" name="notify">
         <NotificationList
+          scope="review"
+          :refresh-token="refreshToken"
+          @changed="emit('changed')"
+          @leave="dialogVisible = false"
+        />
+      </el-tab-pane>
+
+      <el-tab-pane label="系统" name="system">
+        <NotificationList
+          scope="system"
           :refresh-token="refreshToken"
           @changed="emit('changed')"
           @leave="dialogVisible = false"
@@ -93,7 +103,7 @@ watch(
 
     <template #footer>
       <span class="center__hint">
-        待审里的「查看详情」会打开完整内容（含图片），看完可直接通过或驳回
+        待审里的「查看详情」会打开完整内容（含图片）；完整历史见「更多 → 通知」
       </span>
     </template>
   </el-dialog>

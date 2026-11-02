@@ -216,6 +216,10 @@ watch(
           <p v-if="item.status === 'rejected' && item.review_note" class="comment__note">
             驳回原因：{{ item.review_note }}
           </p>
+          <!-- 审核人 / 审核时间：服务端只回给自己的评论（T4.10） -->
+          <p v-if="item.status !== 'pending' && item.reviewed_at" class="comment__review">
+            由 {{ item.reviewer_name || '管理员' }} 审核 · {{ formatTime(item.reviewed_at) }}
+          </p>
         </div>
       </li>
     </ul>
@@ -357,6 +361,13 @@ watch(
 
 /* 驳回原因只在自己那条上出现（服务端也只回给自己的评论） */
 .comment__note {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-3);
+}
+
+/* 谁审的 + 什么时候审的：同样只给自己的评论看 */
+.comment__review {
   margin: 0;
   font-size: var(--font-size-sm);
   color: var(--text-3);

@@ -85,6 +85,8 @@ export const navGroups: NavGroup[] = [
     label: '更多',
     icon: 'more',
     items: [
+      // 通知：审核结果 + 系统通知的历史（T4.9）
+      { label: '通知', path: '/notifications' },
       // 用户资料和顶栏头像菜单指向同一页（旧版也是两处入口）
       { label: '用户资料', path: '/account' },
       { label: '小键盘设置', path: '/keyboard' },
