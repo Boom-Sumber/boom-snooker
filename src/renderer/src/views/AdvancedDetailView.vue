@@ -11,7 +11,7 @@
  * 离线也能看；取不到时区分「还没同步完」和「确实不存在」。
  */
 import { computed, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElImageViewer, ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeftBold } from '@element-plus/icons-vue'
 import AdvancedFormDialog from '@renderer/components/AdvancedFormDialog.vue'
@@ -28,6 +28,7 @@ import AuthorTag from '@renderer/components/AuthorTag.vue'
 const props = defineProps<{ category: string; id: string }>()
 
 const router = useRouter()
+const route = useRoute()
 const dataset = useDatasetStore()
 const auth = useAuthStore()
 
@@ -171,7 +172,17 @@ const canManage = computed(() => {
   )
 })
 
+/** 从「我的投稿」点进来的：左上角要回我的投稿，而不是回系列列表 */
+const fromMySubmissions = computed(() => route.query.from === 'my-submissions')
+const backLabel = computed(() =>
+  fromMySubmissions.value ? '返回我的投稿' : `返回${categoryName.value}`
+)
+
 function goBack(): void {
+  if (fromMySubmissions.value) {
+    void router.push('/my-submissions')
+    return
+  }
   void router.push(`/advanced/${props.category}`)
 }
 
@@ -212,7 +223,7 @@ async function onSaved(): Promise<void> {
       <el-button text class="detail__back" @click="goBack">
         <span class="detail__back-inner">
           <el-icon><ArrowLeftBold /></el-icon>
-          <span>返回{{ categoryName }}</span>
+          <span>{{ backLabel }}</span>
         </span>
       </el-button>
 

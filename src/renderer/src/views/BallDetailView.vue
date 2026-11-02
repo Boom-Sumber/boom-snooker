@@ -16,7 +16,7 @@
  * 数据不额外请求：按 id 从本地快照取（`dataset.findBall`），离线也能看。
  */
 import { computed, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElImageViewer, ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeftBold } from '@element-plus/icons-vue'
 import BallFormDialog from '@renderer/components/BallFormDialog.vue'
@@ -33,6 +33,7 @@ import AuthorTag from '@renderer/components/AuthorTag.vue'
 const props = defineProps<{ color: string; id: string }>()
 
 const router = useRouter()
+const route = useRoute()
 const dataset = useDatasetStore()
 const auth = useAuthStore()
 
@@ -202,7 +203,17 @@ const canManage = computed(() => {
  * 优先 `back()`：列表页的筛选条件写在 URL query 上，回退能原样还原，
  * 顺带回到之前的滚动位置。直接打开详情页（没有上一条历史）时才 push 到列表。
  */
+/** 从「我的投稿」点进来的：左上角要回我的投稿，而不是回彩球列表 */
+const fromMySubmissions = computed(() => route.query.from === 'my-submissions')
+const backLabel = computed(() =>
+  fromMySubmissions.value ? '返回我的投稿' : `返回${colorName.value}`
+)
+
 function goBack(): void {
+  if (fromMySubmissions.value) {
+    void router.push('/my-submissions')
+    return
+  }
   if (window.history.state?.back) router.back()
   else void router.push(`/balls/${props.color}`)
 }
@@ -244,7 +255,7 @@ async function onSaved(): Promise<void> {
       <el-button text class="detail__back" @click="goBack">
         <span class="detail__back-inner">
           <el-icon><ArrowLeftBold /></el-icon>
-          <span>返回{{ colorName }}</span>
+          <span>{{ backLabel }}</span>
         </span>
       </el-button>
 

@@ -343,7 +343,7 @@ onMounted(() => {
           empty-text="这里还没有账户"
         >
           <!-- 昵称 + 邮箱合成一列：邮箱很长，单独占一列会把表格撑到横向滚动 -->
-          <el-table-column label="账户" :width="240">
+          <el-table-column label="账户" min-width="220">
             <template #default="{ row }">
               <div class="cell__name-row">
                 <span class="cell__name">{{ row.nickname }}</span>
@@ -353,7 +353,8 @@ onMounted(() => {
             </template>
           </el-table-column>
 
-          <el-table-column label="角色" :width="128">
+          <!-- 角色列给最小宽度：下拉框比纯文本宽，128px 会把右边框挤掉 -->
+          <el-table-column label="角色" min-width="150">
             <template #default="{ row }">
               <el-select
                 v-if="canManage(row) && !row.deleted_at"
@@ -375,14 +376,14 @@ onMounted(() => {
             </template>
           </el-table-column>
 
-          <el-table-column label="邀请人" :width="112">
+          <el-table-column label="邀请人" min-width="120">
             <template #default="{ row }">
               {{ row.inviter_nickname || (row.role === 'superadmin' ? '—' : '历史账号') }}
             </template>
           </el-table-column>
 
           <template v-if="tab === 'active'">
-            <el-table-column label="注册时间" :width="170">
+            <el-table-column label="注册时间" min-width="170">
               <template #default="{ row }">
                 <span class="cell__time">{{ formatTime(row.created_at) }}</span>
               </template>
@@ -393,15 +394,15 @@ onMounted(() => {
             <el-table-column label="停用人" min-width="7rem">
               <template #default="{ row }">{{ row.deleter_nickname || '—' }}</template>
             </el-table-column>
-            <el-table-column label="停用时间" :width="170">
+            <el-table-column label="停用时间" min-width="170">
               <template #default="{ row }">
                 <span class="cell__time">{{ formatTime(row.deleted_at) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="原因" :width="140" show-overflow-tooltip>
+            <el-table-column label="原因" min-width="140" show-overflow-tooltip>
               <template #default="{ row }">{{ row.deleted_reason || '—' }}</template>
             </el-table-column>
-            <el-table-column label="隐藏内容" :width="104">
+            <el-table-column label="隐藏内容" min-width="100">
               <template #default="{ row }">{{ row.hidden_count }} 条</template>
             </el-table-column>
           </template>
@@ -596,19 +597,55 @@ onMounted(() => {
 }
 
 .list {
-  padding: 0.875rem 1rem 1rem;
+  /* 表格要贴到卡片两侧边框：卡片本身不留左右内边距，由里面的元素自己留 */
+  padding: 0;
+  overflow: hidden;
 }
 
 .list__tabs {
+  padding: 0.875rem 1rem 0;
   margin-bottom: 0.75rem;
 }
 
 .list__table {
   width: 100%;
+  /* 表格不要自己的底色，露出卡片背景 */
+  --el-table-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+  --el-table-header-bg-color: transparent;
+  --el-table-row-hover-bg-color: var(--surface-2);
+  --el-table-border-color: var(--border);
+  background: transparent;
+}
+
+/* 去掉表格自带的底部横线：它只横到内容区，和卡片边框对不齐 */
+.list__table :deep(.el-table__inner-wrapper::before) {
+  display: none;
+}
+
+/* 单元格左右留白统一，行分割线两端到卡片边框距离才一致。
+   el-table 默认在 td 和内部 .cell 上各有一层 padding，两层叠加会把内容挤窄，
+   这里把内层清掉，只保留 td 的这层 */
+.list__table :deep(.el-table .cell) {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.list__table :deep(.el-table__cell) {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.list__table :deep(.el-table__cell:first-child) {
+  padding-left: 1.25rem;
+}
+
+.list__table :deep(.el-table__cell:last-child) {
+  padding-right: 1.25rem;
 }
 
 .list__error {
-  margin: 0 0 0.75rem;
+  margin: 0 1rem 0.75rem;
   padding: 0.5rem 0.75rem;
   font-size: var(--font-size-sm);
   color: var(--danger);
@@ -619,6 +656,7 @@ onMounted(() => {
 .list__pager {
   justify-content: flex-end;
   margin-top: 0.75rem;
+  padding: 0 1rem 1rem;
 }
 
 .cell__name-row {
@@ -654,7 +692,8 @@ onMounted(() => {
 }
 
 .cell__role {
-  width: 7.5rem;
+  /* 跟着单元格宽度走：固定 7.5rem 会超出列宽，右边框被裁掉 */
+  width: 100%;
 }
 
 .cell__na {

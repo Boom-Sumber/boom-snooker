@@ -58,10 +58,12 @@ function formatTime(raw: string): string {
 }
 
 function open(item: MyRecordItem): void {
+  // 带上来源：详情页据此把左上角改成「返回我的投稿」
+  const query = { from: 'my-submissions' }
   if (item.record_type === 'ball') {
-    void router.push(`/balls/${item.color_code}/${item.id}`)
+    void router.push({ path: `/balls/${item.color_code}/${item.id}`, query })
   } else {
-    void router.push(`/advanced/${item.category_code}/${item.id}`)
+    void router.push({ path: `/advanced/${item.category_code}/${item.id}`, query })
   }
 }
 
@@ -123,28 +125,37 @@ onMounted(load)
       <ul v-else class="mine__list">
         <li v-for="item in items" :key="item.id" class="sub">
           <button class="sub__main" type="button" @click="open(item)">
-            <span class="sub__head">
-              <span class="sub__type">{{ item.record_type === 'ball' ? '彩球' : '进阶' }}</span>
-              <span class="sub__title">{{ recordTitle(item) }}</span>
-              <el-tag size="small" :type="STATUS_TAG_TYPE[item.review_status]" effect="plain">
-                {{ STATUS_LABELS[item.review_status] }}
-              </el-tag>
+            <span class="sub__content">
+              <span class="sub__head">
+                <span class="sub__type">{{ item.record_type === 'ball' ? '彩球' : '进阶' }}</span>
+                <span class="sub__title">{{ recordTitle(item) }}</span>
+              </span>
+
+              <span v-if="item.review_status === 'rejected' && item.review_note" class="sub__note">
+                驳回原因：{{ item.review_note }}
+              </span>
+
+              <span class="sub__meta">
+                <ReviewStamp
+                  v-if="item.review_status !== 'pending' && item.reviewed_at"
+                  :name="item.reviewer_name"
+                  :role="item.reviewer_role"
+                  :at="item.reviewed_at"
+                  :status="item.review_status === 'rejected' ? 'rejected' : 'visible'"
+                />
+                <span class="sub__time">更新于 {{ formatTime(item.updated_at) }}</span>
+              </span>
             </span>
 
-            <span v-if="item.review_status === 'rejected' && item.review_note" class="sub__note">
-              驳回原因：{{ item.review_note }}
-            </span>
-
-            <span class="sub__meta">
-              <ReviewStamp
-                v-if="item.review_status !== 'pending' && item.reviewed_at"
-                :name="item.reviewer_name"
-                :role="item.reviewer_role"
-                :at="item.reviewed_at"
-                :status="item.review_status === 'rejected' ? 'rejected' : 'visible'"
-              />
-              <span class="sub__time">更新于 {{ formatTime(item.updated_at) }}</span>
-            </span>
+            <!-- 状态标签放在卡片右侧并垂直居中 -->
+            <el-tag
+              class="sub__status"
+              size="small"
+              :type="STATUS_TAG_TYPE[item.review_status]"
+              effect="plain"
+            >
+              {{ STATUS_LABELS[item.review_status] }}
+            </el-tag>
           </button>
         </li>
       </ul>
@@ -203,14 +214,29 @@ onMounted(load)
 
 .sub__main {
   display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
   width: 100%;
   padding: 0.75rem 0.875rem;
   text-align: left;
   cursor: pointer;
   background: transparent;
   border: 0;
+}
+
+.sub__content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+/* 状态标签：靠右、垂直居中，不随内容行高漂移 */
+.sub__status {
+  flex: none;
+  align-self: center;
 }
 
 .sub__head {
