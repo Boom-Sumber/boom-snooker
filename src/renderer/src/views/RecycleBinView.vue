@@ -241,6 +241,10 @@ async function onPurgeOrphans(): Promise<void> {
 
 onMounted(() => {
   void load()
+  // 已经登录超管时（比如从别的页面跳进来），`isSuperadmin` 一开始就是 true，
+  // 下面的 watch 不会触发 —— 不在这里补一次，孤儿图区块会一直显示"桶是干净的"，
+  // 必须手动点「重新扫描」才出结果（T11.3 实测踩到）
+  if (auth.isSuperadmin) void loadOrphans()
 })
 
 // 首帧可能还没拿到 profile（`isSuperadmin` 先是 false），拿到之后要补一次请求，
