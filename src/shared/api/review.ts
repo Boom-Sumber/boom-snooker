@@ -216,3 +216,16 @@ export async function listRecentReviews(limit = 20): Promise<ReviewResult<Recent
   if (error) return { ok: false, message: translateReviewError(error.message ?? '') }
   return { ok: true, data: (Array.isArray(data) ? data : []) as RecentReview[] }
 }
+
+/**
+ * 待审超时升级（T8.5）
+ *
+ * 超管打开审核中心时调一次：服务端找出「待审超过 12 小时」的记录，
+ * 给超管发通知（同一条 24h 内只发一次），返回当前超时总数。
+ * 不做定时任务 —— 惰性触发就够，也符合 D12（不引入额外组件）。
+ */
+export async function escalateStalePending(): Promise<ReviewResult<number>> {
+  const { data, error } = await rpc('escalate_stale_pending')
+  if (error) return { ok: false, message: translateReviewError(error.message ?? '') }
+  return { ok: true, data: Number(data ?? 0) }
+}

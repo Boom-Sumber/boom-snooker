@@ -21,6 +21,7 @@ import { useAuthStore } from '@renderer/stores'
 import { countPendingComments } from '@shared/api/comments'
 import {
   countPendingRecords,
+  escalateStalePending,
   listRecentReviews,
   listRejectedRecords,
   type RecentReview
@@ -34,6 +35,8 @@ const refreshToken = ref(0)
 
 const counts = reactive({ comment: 0, record: 0, rejected: 0 })
 const recent = ref<RecentReview[]>([])
+/** 待审超过 12 小时的数量（超管才看得到） */
+const staleCount = ref(0)
 const recentLoading = ref(false)
 const recentError = ref('')
 
@@ -81,8 +84,21 @@ async function loadRecent(): Promise<void> {
   recent.value = result.data
 }
 
+/**
+ * 待审超时升级（T8.5）
+ *
+ * 只有超管需要：管理员本来就该处理自己范围内的，超管是兜底。
+ * 服务端负责查重（同一条 24h 只发一次通知），这里只管拿回超时总数。
+ */
+async function escalate(): Promise<void> {
+  if (!auth.isSuperadmin) return
+  const result = await escalateStalePending()
+  if (result.ok) staleCount.value = result.data
+}
+
 function refresh(): void {
   refreshToken.value += 1
+  void escalate()
   void loadCounts()
   void loadRecent()
 }
@@ -95,6 +111,7 @@ function onChanged(): void {
 
 onMounted(() => {
   if (!canManage.value) return
+  void escalate()
   void loadCounts()
   void loadRecent()
 })
@@ -104,6 +121,7 @@ watch(
   () => auth.isAdmin,
   (allowed) => {
     if (!allowed) return
+    void escalate()
     void loadCounts()
     void loadRecent()
   }
@@ -124,6 +142,16 @@ watch(
         <el-button :loading="recentLoading" @click="refresh">刷新</el-button>
       </div>
     </header>
+
+    <el-alert
+      v-if="canManage && staleCount > 0"
+      class="stale-alert"
+      type="warning"
+      show-icon
+      :closable="false"
+      :title="`有 ${staleCount} 条待审已超过 12 小时未处理`"
+      description="已给超级管理员发送提醒；管理员长时间不在线时，超管可以直接在「待审记录 / 待审评论」里代为处理。"
+    />
 
     <div v-if="!canManage" class="card empty">
       <p class="empty__title">没有权限</p>
@@ -225,6 +253,10 @@ watch(
   display: flex;
   flex: none;
   gap: 0.5rem;
+}
+
+.stale-alert {
+  border-radius: var(--radius-md);
 }
 
 .body {
