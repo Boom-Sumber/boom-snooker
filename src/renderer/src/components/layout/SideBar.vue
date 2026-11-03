@@ -12,7 +12,7 @@ import {
 } from '@renderer/navigation/menu'
 import AppIcon from '@renderer/components/AppIcon.vue'
 import { iconSize } from '@renderer/icons'
-import { useAuthStore } from '@renderer/stores'
+import { useAuthStore, useUpdateStore } from '@renderer/stores'
 
 /**
  * Element Plus 图标映射
@@ -138,6 +138,14 @@ function isActive(path: string): boolean {
 
 /** 吸底项（系统设置）的高亮：它不属于任何分组，单独算 */
 const pinnedActive = computed(() => matchesPath(route.path, pinnedNavItem.path))
+
+/**
+ * 红点（U3）
+ *
+ * 非强制更新**不弹窗**，界面里唯一的提示就是这里的小红点 + 托盘 tooltip。
+ * 状态来自全局 store（由 bootstrapStores 建的唯一订阅），不在这里再订阅一次。
+ */
+const update = useUpdateStore()
 </script>
 
 <template>
@@ -227,6 +235,7 @@ const pinnedActive = computed(() => matchesPath(route.path, pinnedNavItem.path))
           <el-icon :size="'1.25rem'">
             <component :is="EP_ICONS[pinnedNavItem.epIcon]" />
           </el-icon>
+          <span v-if="update.hasUpdate" class="pinned__dot" aria-hidden="true" />
         </span>
         <span v-if="!collapsed" class="pinned__label">{{ pinnedNavItem.label }}</span>
       </RouterLink>
@@ -341,12 +350,25 @@ const pinnedActive = computed(() => matchesPath(route.path, pinnedNavItem.path))
 }
 
 .pinned__icon {
+  position: relative;
   display: grid;
   flex: 0 0 auto;
   place-items: center;
   width: 1.25rem;
   height: 1.25rem;
   color: inherit;
+}
+
+/* 小红点：右上角，带一圈与底色同色的描边，压在图标上也不糊 */
+.pinned__dot {
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  width: 0.5rem;
+  height: 0.5rem;
+  background: var(--danger);
+  border: 2px solid var(--sidebar-bg);
+  border-radius: 50%;
 }
 
 .pinned__label {

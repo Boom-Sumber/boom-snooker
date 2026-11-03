@@ -12,7 +12,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { storeToRefs } from 'pinia'
-import { useDatasetStore, useThemeStore } from '@renderer/stores'
+import { useDatasetStore, useThemeStore, useUpdateStore } from '@renderer/stores'
 import type { AppInfo } from '@shared/types/app'
 import type { AutoStartState, CloseAction } from '@shared/types/system'
 import type { MediaCacheStats, PrefetchProgress } from '@shared/types/media'
@@ -20,6 +20,7 @@ import type { ThemeMode } from '@shared/types/theme'
 
 const theme = useThemeStore()
 const dataset = useDatasetStore()
+const update = useUpdateStore()
 const { balls, advanced, version, lastSyncAt, syncing, progress, syncState } = storeToRefs(dataset)
 
 const appInfo = ref<AppInfo | null>(null)
@@ -304,6 +305,63 @@ async function onCopyLogPath(): Promise<void> {
     ElMessage.error('复制失败，手动选中吧')
   }
 }
+
+/* ── 应用更新（U3） ── */
+
+/**
+ * 状态文案
+ *
+ * 一律从 store 的 phase 派生，不另存一份 —— 主进程是唯一真源，
+ * 这里多存一份就会出现"显示已是最新、其实正在下载"这种自相矛盾。
+ */
+const updateStatusText = computed<string>(() => {
+  const state = update.state
+
+  if (state.phase === 'unsupported') {
+    return state.unsupportedReason ?? '当前环境不支持应用内更新'
+  }
+  if (state.phase === 'checking') return '正在检查…'
+  if (state.phase === 'downloading')
+    return `正在下载 v${state.info?.version ?? ''}（${update.percent}%）`
+  if (state.phase === 'downloaded') {
+    return `v${state.info?.version ?? ''} 已下载完成，重启后自动安装`
+  }
+  if (state.phase === 'available') {
+    return state.mandatory
+      ? `必须更新到 v${state.info?.version ?? ''}，当前版本已停止支持`
+      : `发现新版本 v${state.info?.version ?? ''}`
+  }
+  if (state.phase === 'not-available') return '已是最新版本'
+  if (state.phase === 'error') return `出错了：${state.error ?? '原因未知'}`
+  return state.checkedAt ? '点右边按钮检查一次' : '启动后会自动检查一次'
+})
+
+async function onCheckUpdate(): Promise<void> {
+  try {
+    const state = await update.check()
+    if (state.phase === 'not-available') ElMessage.success('已经是最新版本')
+    else if (state.phase === 'available') ElMessage.success(`发现新版本 v${state.info?.version}`)
+    else if (state.phase === 'error') ElMessage.error(state.error ?? '检查失败')
+  } catch {
+    ElMessage.error('检查更新失败')
+  }
+}
+
+async function onDownloadUpdate(): Promise<void> {
+  try {
+    await update.download()
+  } catch {
+    ElMessage.error('下载没能开始，稍后再试')
+  }
+}
+
+async function onCancelUpdate(): Promise<void> {
+  await update.cancel()
+}
+
+async function onInstallUpdate(): Promise<void> {
+  await update.install()
+}
 </script>
 
 <template>
@@ -444,6 +502,65 @@ async function onCopyLogPath(): Promise<void> {
           <dd>{{ appInfo?.node ?? '—' }}</dd>
         </div>
       </dl>
+
+      <!-- 应用更新（U3）：非强制只在这里提示，不弹窗打扰 -->
+      <div class="update">
+        <div class="update__main">
+          <p class="update__title">应用更新</p>
+          <p class="update__state" :class="{ 'update__state--error': update.phase === 'error' }">
+            {{ updateStatusText }}
+          </p>
+          <!-- 下载中才显示进度：没在下载时摆一条 0% 的进度条只会让人以为卡住了 -->
+          <el-progress
+            v-if="update.phase === 'downloading'"
+            class="update__progress"
+            :percentage="update.percent"
+            :stroke-width="6"
+          />
+          <p class="update__meta">
+            上次检查：{{ formatTime(update.state.checkedAt) }}
+            <template v-if="update.info?.size">
+              · 安装包 {{ sizeText(update.info.size) }}
+            </template>
+          </p>
+        </div>
+
+        <div class="update__actions">
+          <el-button
+            v-if="update.phase === 'downloaded'"
+            type="primary"
+            size="small"
+            @click="onInstallUpdate"
+          >
+            重启并安装
+          </el-button>
+          <el-button
+            v-else-if="update.phase === 'downloading'"
+            size="small"
+            @click="onCancelUpdate"
+          >
+            取消下载
+          </el-button>
+          <el-button
+            v-else-if="update.phase === 'available'"
+            type="primary"
+            size="small"
+            :loading="update.busy"
+            @click="onDownloadUpdate"
+          >
+            下载更新
+          </el-button>
+          <el-button
+            v-else
+            size="small"
+            :disabled="!update.canCheck"
+            :loading="update.busy"
+            @click="onCheckUpdate"
+          >
+            检查更新
+          </el-button>
+        </div>
+      </div>
 
       <!-- 日志（T6.2）：出问题时唯一需要看的东西 -->
       <p class="log-line">
@@ -608,6 +725,61 @@ async function onCopyLogPath(): Promise<void> {
   font-size: var(--font-size-sm);
   line-height: 2;
   color: var(--text-2);
+}
+
+/* 更新行：左侧状态、右侧按钮。窄窗口时按钮换到下一行，不挤成一团 */
+.update {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1rem;
+  padding: 0.75rem 0.875rem;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+
+.update__main {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.update__title {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--text-1);
+}
+
+.update__state {
+  margin: 0.125rem 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-2);
+  /* 错误信息可能很长（HTML 错误页），最多两行 */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.update__state--error {
+  color: var(--danger);
+}
+
+.update__progress {
+  margin-top: 0.5rem;
+}
+
+.update__meta {
+  margin: 0.25rem 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.update__actions {
+  flex: 0 0 auto;
 }
 
 /* 缓存进度弹框的两行说明 */

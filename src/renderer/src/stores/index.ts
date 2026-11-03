@@ -9,8 +9,9 @@ import { useDatasetStore } from './dataset'
 import { useNetworkStore } from './network'
 import { useThemeStore } from './theme'
 import { useUiStore } from './ui'
+import { useUpdateStore } from './update'
 
-export { useAuthStore, useDatasetStore, useNetworkStore, useThemeStore, useUiStore }
+export { useAuthStore, useDatasetStore, useNetworkStore, useThemeStore, useUiStore, useUpdateStore }
 
 /** 常用行类型一并从这里出，组件不用再深到 db.ts / shared */
 export type { Advanced, Ball, DictRow, SyncState } from './dataset'
@@ -40,4 +41,8 @@ export function bootstrapStores(): void {
       if (!import.meta.env.DEV) return
       void import('@renderer/dev/auto-login').then((module) => module.autoLoginIfConfigured())
     })
+
+  // 更新状态（U3）：越早订阅越好 —— 主进程 8s 首检的结果要靠它推过来，
+  // 晚了会漏掉"启动瞬间就有新版"的那一次广播
+  void useUpdateStore().init()
 }

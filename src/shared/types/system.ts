@@ -41,4 +41,11 @@ export interface SystemApi {
     get: () => Promise<AutoStartState>
     set: (enabled: boolean) => Promise<AutoStartState>
   }
+  /**
+   * 真正退出程序（不是"关闭窗口"）
+   *
+   * 关闭行为为"最小化到托盘"时，窗口的 close 会被主进程拦下来，
+   * 所以强制更新弹窗里的「退出程序」必须走这条独立的 IPC。
+   */
+  quit: () => Promise<void>
 }

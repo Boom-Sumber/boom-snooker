@@ -39,7 +39,9 @@ const api: {
       get: (): Promise<AutoStartState> => ipcRenderer.invoke('autostart:get'),
       set: (enabled: boolean): Promise<AutoStartState> =>
         ipcRenderer.invoke('autostart:set', enabled)
-    }
+    },
+    /** 真退出（强制更新弹窗用）：绕过"关闭窗口 = 缩到托盘"的拦截 */
+    quit: (): Promise<void> => ipcRenderer.invoke('app:quit')
   },
   media: {
     stats: (): Promise<MediaCacheStats> => ipcRenderer.invoke('media:stats'),
