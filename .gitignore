@@ -48,3 +48,4 @@ temp.json
 
 # AI 助手的本地记忆与临时文件（不是项目产物）
 .workbuddy-ai/
+.workbuddy/
