@@ -9,6 +9,7 @@ import { initPreferences, registerPreferencesIpc } from './preferences'
 import { registerStoreIpc } from './store'
 import { initTheme } from './theme'
 import { destroyTray, initTray, setQuitting } from './tray'
+import { initUpdater, registerUpdaterIpc } from './updater'
 import { createMainWindow, getMainWindow, registerWindowIpc, showMainWindow } from './window'
 
 // 日志最先起来：启动阶段（建窗口之前）出问题也要留证据
@@ -45,6 +46,7 @@ if (!gotSingleInstanceLock) {
     registerPreferencesIpc()
     registerAutoStartIpc()
     registerMediaIpc()
+    registerUpdaterIpc()
 
     // 开发期 F12 开关 DevTools，生产期忽略 Ctrl+R
     app.on('browser-window-created', (_, window) => {
@@ -64,6 +66,9 @@ if (!gotSingleInstanceLock) {
         getMainWindow()?.webContents.send('app:navigate', '/settings')
       }
     })
+
+    // 更新放在托盘之后：托盘 tooltip 要显示"有新版本"，没有托盘时会自动跳过
+    initUpdater()
   })
 
   /**

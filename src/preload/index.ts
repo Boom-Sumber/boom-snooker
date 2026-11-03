@@ -7,6 +7,7 @@ import type { CacheFileInfo, LocalStoreApi } from '@shared/types/storage'
 import type { AppPreferences, AutoStartState, SystemApi } from '@shared/types/system'
 import type { MediaApi, MediaCacheStats, PrefetchProgress } from '@shared/types/media'
 import type { ThemeApi, ThemeMode, ThemeState } from '@shared/types/theme'
+import type { UpdateState, UpdaterApi } from '@shared/types/update'
 import type { WindowControls } from '@shared/types/window'
 
 // 自定义 API：渲染进程只能通过这里访问主进程能力，不直接碰 Node
@@ -19,6 +20,7 @@ const api: {
   log: LogApi
   system: SystemApi
   media: MediaApi
+  updater: UpdaterApi
 } = {
   app: {
     info: () => ipcRenderer.invoke('app:info')
@@ -57,6 +59,20 @@ const api: {
       ipcRenderer.send('log:write', level, scope, message, detail),
     path: (): Promise<string> => ipcRenderer.invoke('log:path'),
     open: (): Promise<void> => ipcRenderer.invoke('log:open')
+  },
+  updater: {
+    state: (): Promise<UpdateState> => ipcRenderer.invoke('updater:state'),
+    check: (): Promise<UpdateState> => ipcRenderer.invoke('updater:check'),
+    download: (): Promise<UpdateState> => ipcRenderer.invoke('updater:download'),
+    cancel: (): Promise<UpdateState> => ipcRenderer.invoke('updater:cancel'),
+    install: (): Promise<void> => ipcRenderer.invoke('updater:install'),
+    /** 主进程推状态快照，渲染层只负责画 */
+    onState: (callback: (state: UpdateState) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, state: UpdateState): void =>
+        callback(state)
+      ipcRenderer.on('updater:state', handler)
+      return () => ipcRenderer.removeListener('updater:state', handler)
+    }
   },
   theme: {
     get: (): Promise<ThemeState> => ipcRenderer.invoke('theme:get'),

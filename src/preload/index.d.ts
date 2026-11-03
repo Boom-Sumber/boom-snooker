@@ -6,6 +6,7 @@ import type { LocalStoreApi } from '@shared/types/storage'
 import type { SystemApi } from '@shared/types/system'
 import type { MediaApi } from '@shared/types/media'
 import type { ThemeApi } from '@shared/types/theme'
+import type { UpdaterApi } from '@shared/types/update'
 import type { WindowControls } from '@shared/types/window'
 
 declare global {
@@ -20,6 +21,7 @@ declare global {
       log: LogApi
       system: SystemApi
       media: MediaApi
+      updater: UpdaterApi
     }
   }
 }

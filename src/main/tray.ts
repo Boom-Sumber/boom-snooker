@@ -26,6 +26,30 @@ export interface TrayHandlers {
 let tray: Tray | null = null
 let quitting = false
 
+/** 托盘 tooltip 的两个可变部分：后台状态 + 待更新的版本号 */
+let backgroundHint = false
+let updateVersion: string | null = null
+
+/** 托盘标题栏文案：`斯诺克走位教学 · 后台运行中 · 有新版本 v0.1.1` */
+function applyTooltip(): void {
+  if (!tray) return
+  const parts = ['斯诺克走位教学']
+  if (backgroundHint) parts.push('后台运行中')
+  if (updateVersion) parts.push(`有新版本 v${updateVersion}`)
+  tray.setToolTip(parts.join(' · '))
+}
+
+/**
+ * 有新版本时在托盘上留个痕迹（U2）
+ *
+ * 非强制更新**不弹窗**，托盘 tooltip 是唯一不打扰的常驻提示；
+ * 传 null 表示清掉（已更新 / 已忽略）。
+ */
+export function setUpdateAvailable(version: string | null): void {
+  updateVersion = version
+  applyTooltip()
+}
+
 /** 是否正在真退出（此时窗口的 close 不再拦） */
 export function isQuitting(): boolean {
   return quitting
@@ -65,7 +89,7 @@ export function initTray(handlers: TrayHandlers): void {
   }
 
   tray = new Tray(icon)
-  tray.setToolTip('斯诺克走位教学')
+  applyTooltip()
 
   const menu = Menu.buildFromTemplate([
     {
@@ -106,12 +130,14 @@ export function notifyMinimizedToTray(): void {
       content: '程序还在后台运行，点托盘图标就能叫回来；想直接退出请在托盘菜单里选「退出」。'
     })
   }
-  tray.setToolTip('斯诺克走位教学（后台运行中）')
+  backgroundHint = true
+  applyTooltip()
 }
 
 /** 窗口重新显示时把提示文案改回去 */
 export function resetTrayTooltip(): void {
-  tray?.setToolTip('斯诺克走位教学')
+  backgroundHint = false
+  applyTooltip()
 }
 
 /** 窗口销毁时清掉托盘，否则进程退出后图标还会残留在通知区 */

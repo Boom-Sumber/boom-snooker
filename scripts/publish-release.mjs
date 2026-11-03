@@ -72,6 +72,8 @@ const GH_REPO = env.GH_REPO || 'Boom-Sumber/boom-snooker'
 const BUCKET = 'releases'
 /** 清单在桶里的固定位置；客户端的 app-update.yml 指向它，不能按版本变 */
 const MANIFEST_PATH = 'win/latest.yml'
+/** 更新策略（最低可用版本），与清单同目录，客户端按 feed 地址拼出来 */
+const POLICY_PATH = 'win/policy.json'
 
 const argv = process.argv.slice(2)
 const flag = (name) => argv.includes(`--${name}`)
@@ -291,6 +293,29 @@ async function main() {
   })
   console.log(`  已上传 ${BUCKET}/${MANIFEST_PATH}`)
 
+  // policy.json：清单只描述"有什么版本"，最低可用版本是**策略**，单独放一个文件。
+  // 客户端拿不到它时按"不强制"处理（见 src/main/updater.ts 的 fetchMinSupportedVersion）。
+  step('上传更新策略 policy.json')
+  const policy = JSON.stringify(
+    {
+      version,
+      min_supported_version: minSupported || version,
+      published_at: new Date().toISOString()
+    },
+    null,
+    2
+  )
+  await supabaseFetch(`/storage/v1/object/${BUCKET}/${POLICY_PATH}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache',
+      'x-upsert': 'true'
+    },
+    body: policy
+  })
+  console.log(`  已上传 ${BUCKET}/${POLICY_PATH}`)
+
   step('写版本表')
   const sha512 = /sha512:\s*(\S+)/.exec(rawManifest)?.[1] || ''
   if (!sha512) fail('清单里没有 sha512，拒绝写表')
@@ -322,6 +347,16 @@ async function main() {
   console.log(`  ${res.status} ${publicManifest}`)
   if (seen !== version) fail(`公开清单里的版本是 "${seen}"，期望 "${version}"`)
   console.log(`  ✓ 公开清单已是 ${version}`)
+
+  const publicPolicy = `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${POLICY_PATH}`
+  const policyRes = await fetch(publicPolicy)
+  const policyText = await policyRes.text()
+  const minSeen = /"min_supported_version"\s*:\s*"([^"]+)"/.exec(policyText)?.[1]
+  console.log(`  ${policyRes.status} ${publicPolicy}`)
+  if (minSeen !== (minSupported || version)) {
+    fail(`公开策略里的 min_supported_version 是 "${minSeen}"，期望 "${minSupported || version}"`)
+  }
+  console.log(`  ✓ 公开策略 min_supported_version=${minSeen}`)
   if (res.headers.get('cache-control')) console.log(`  cache-control: ${res.headers.get('cache-control')}`)
 
   console.log(`\n✓ 发布完成：${tag}\n  安装包 ${installerUrl}\n  清单   ${publicManifest}\n`)
