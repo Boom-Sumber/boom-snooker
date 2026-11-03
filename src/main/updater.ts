@@ -264,7 +264,10 @@ function runInstall(): void {
   mainLog.info('updater', `重启并安装 v${state.info?.version ?? '?'}`)
   // 先置位：否则 quitAndInstall 触发的 close 会被窗口拦回托盘，安装器根本起不来
   setQuitting(true)
-  updater.quitAndInstall(false, true)
+  // isSilent=true → 安装器带 /S：不再走一遍「选目录 / 勾快捷方式 / 完成页」。
+  // isForceRunAfter=true → 带 --force-run，静默装完由安装器直接拉起新版本。
+  // 安装器侧还有一道保险（识别 --updated 自行转静默），老版本客户端升级也适用。
+  updater.quitAndInstall(true, true)
 }
 
 // ────────────────────────────── 事件接线 ──────────────────────────────

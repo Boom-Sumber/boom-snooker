@@ -11,6 +11,7 @@
 
 !include "nsDialogs.nsh"
 !include "LogicLib.nsh"
+!include "FileFunc.nsh"     ; GetParameters / GetOptions（FileFunc 自带 include guard，重复包含无害）
 
 ; 卸载器那一趟也会 include 本文件，但页面宏只在安装器分支展开，
 ; 变量会变成"声明未用"（warning 6001，electron-builder 视为错误），所以整体圈起来。
@@ -20,6 +21,7 @@ Var OptDesktopShortcut      ; "1" / "0"，只有页面返回值，静默安装�
 Var OptStartMenuShortcut
 Var OptDesktopCheckbox      ; 控件句柄
 Var OptStartMenuCheckbox
+Var SnkIsUpdate             ; "1" = 本次由应用内更新拉起
 
 ; 强制「仅为当前用户安装」，跳过安装模式页。
 ; 原因：自动更新走的是无 UAC 的静默安装，必须落在同一个 per-user 目录；
@@ -28,11 +30,27 @@ Var OptStartMenuCheckbox
   StrCpy $isForceCurrentInstall "1"
 !macroend
 
-; 静默安装（/S，包含自动更新）不执行任何页面，变量会保持空值，
+; 静默安装（/S）不执行任何页面，变量会保持空值，
 ; 这里给个安全默认：两个快捷方式都创建（与旧的 oneClick 行为一致）。
+;
+; 应用内更新（electron-updater）会带 `--updated` 参数。凡是带这个参数的，
+; 一律当场转静默：不问安装目录、不问快捷方式、不放完成页，
+; 装完由 `--force-run` 直接拉起新版本（见 electron-builder 的 installSection.nsh）。
+;
+; 为什么不能只靠调用方传 /S：正在运行的是「旧版本」的代码，它可能没传 /S
+; （0.1.2 及更早就是 quitAndInstall(false, true)）。把判断放在安装器里，
+; 升级链路的第一次就能生效，不用等用户先升到新版本。
 !macro customInit
   StrCpy $OptDesktopShortcut "1"
   StrCpy $OptStartMenuShortcut "1"
+  StrCpy $SnkIsUpdate "0"
+
+  ${GetParameters} $R0
+  ${GetOptions} $R0 "--updated" $R1
+  ${IfNot} ${Errors}
+    StrCpy $SnkIsUpdate "1"
+    SetSilent silent
+  ${EndIf}
 !macroend
 
 ; 插在「选择安装位置」之后、「开始安装」之前
