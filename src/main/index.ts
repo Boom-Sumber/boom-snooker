@@ -2,6 +2,7 @@ import { app, BrowserWindow } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { registerAppInfoIpc } from './appInfo'
 import { registerAuthIpc } from './auth'
+import { registerMediaProtocol } from './media'
 import { registerStoreIpc } from './store'
 import { initTheme } from './theme'
 import { createMainWindow, registerWindowIpc } from './window'
@@ -25,6 +26,9 @@ if (!gotSingleInstanceLock) {
 
     // 主题必须在建窗口之前定下来，否则首帧会闪一下
     initTheme()
+
+    // 图片协议要在窗口出来之前注册好，否则首屏图片会 404
+    registerMediaProtocol()
 
     registerWindowIpc()
     registerAuthIpc()

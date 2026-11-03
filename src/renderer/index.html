@@ -11,10 +11,13 @@
       img-src 必须带 blob: —— 表单选图后的本地预览用 `URL.createObjectURL()`
       生成 blob: 地址。少了它，`<img>` 会被拦成破图（只剩 alt 文本），
       控制台只有一条 CSP 报错，很容易被当成"预览不生效"去改组件。
+
+      img-src 必须带 snooker-media: —— T5.1 起图片走主进程自定义协议
+      （本地缓存命中就不下载），scheme 写错会整站图片全破。
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co; font-src 'self' data:; connect-src 'self' https://*.supabase.co https://v1.jinrishici.com ws: http://localhost:*"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: snooker-media: https://*.supabase.co; font-src 'self' data:; connect-src 'self' https://*.supabase.co https://v1.jinrishici.com ws: http://localhost:*"
     />
   </head>
 
