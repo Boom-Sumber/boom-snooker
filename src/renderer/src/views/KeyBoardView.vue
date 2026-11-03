@@ -87,9 +87,7 @@ function previewIndex(step: number): number {
           preview-teleported
           class="step__img"
         />
-        <div v-else class="step__missing">
-          这张截图待补（<code>{{ group.key }}/{{ step.index }}.png</code>）
-        </div>
+        <div v-else class="step__missing">该步骤暂无截图</div>
       </li>
     </ol>
   </section>
@@ -194,11 +192,5 @@ function previewIndex(step: number): number {
   text-align: center;
   background: var(--surface-2);
   border-radius: var(--radius-sm);
-}
-
-.step__missing code {
-  padding: 0 0.25rem;
-  background: var(--surface-1);
-  border-radius: 4px;
 }
 </style>

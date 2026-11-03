@@ -191,7 +191,7 @@ async function onCopyLogPath(): Promise<void> {
 
       <p class="about">
         作者：酸菜黄花鱼 · 联系方式 QQ 78260590<br />
-        本程序用于学习 2D 桌球（斯诺克）走位技巧，不是外挂。
+        本程序用于学习斯诺克走位技巧，仅供内部交流使用。
       </p>
     </article>
   </section>

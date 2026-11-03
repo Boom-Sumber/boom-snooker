@@ -1,9 +1,13 @@
 <script setup lang="ts">
+/**
+ * 简单占位页（现在只有 404 在用）
+ *
+ * 早期版本带过一个 `task` 属性，用来显示"这个页面计划在哪个任务里实现"，
+ * 那是开发期的脚手架提示；页面全部实现完之后它就是纯噪音，已删（T9.4）。
+ */
 defineProps<{
   title: string
   description?: string
-  /** 这个页面计划在哪个任务里实现 */
-  task?: string
 }>()
 </script>
 
@@ -11,7 +15,6 @@ defineProps<{
   <section class="placeholder">
     <h1>{{ title }}</h1>
     <p v-if="description" class="description">{{ description }}</p>
-    <p v-if="task" class="task">{{ task }}</p>
     <slot />
   </section>
 </template>
@@ -36,11 +39,5 @@ h1 {
   margin: 0;
   color: var(--text-2);
   line-height: 1.8;
-}
-
-.task {
-  margin: 0;
-  color: var(--text-3);
-  font-size: var(--font-size-sm);
 }
 </style>

@@ -34,7 +34,10 @@ export function bootstrapStores(): void {
   void useAuthStore()
     .init()
     .then(() => {
-      // 开发期自动登录（T3.5 有登录界面之前的过渡手段，生产构建不执行）
+      // 开发期自动登录（T3.5 有登录界面之前的过渡手段）。
+      // 这个 DEV 判断不能省：不加的话动态 import 会被 Vite 单独打成
+      // `auto-login-*.js` chunk 塞进安装包，包里留一段永远不会执行的登录逻辑。
+      if (!import.meta.env.DEV) return
       void import('@renderer/dev/auto-login').then((module) => module.autoLoginIfConfigured())
     })
 }

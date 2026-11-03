@@ -1,4 +1,5 @@
 import { readonly, ref } from 'vue'
+import { logger } from '@renderer/services/logger'
 import { DEFAULT_THEME_MODE, type ThemeMode } from '@shared/types/theme'
 
 /**
@@ -39,7 +40,7 @@ export function initTheme(): void {
       paint()
     })
     .catch((error) => {
-      console.error('[theme] 读取主题设置失败，按系统外观显示：', error)
+      logger.error('theme', '读取主题设置失败，按系统外观显示', error)
     })
 }
 

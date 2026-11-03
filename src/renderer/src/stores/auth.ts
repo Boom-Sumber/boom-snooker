@@ -12,6 +12,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { Session } from '@supabase/supabase-js'
+import { logger } from '@renderer/services/logger'
 import {
   changePassword as apiChangePassword,
   getMyProfile,
@@ -90,7 +91,8 @@ export const useAuthStore = defineStore('auth', () => {
 
       profile.value = next
     } catch (error) {
-      console.error('[auth] 读取 profile 失败：', error)
+      // 走统一日志（T6.2）：控制台在安装包里看不到，写进 main.log 才查得到
+      logger.error('auth', '读取 profile 失败', error)
       profile.value = null
     } finally {
       loadingProfile = false
@@ -109,7 +111,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       session.value = await getSession()
     } catch (error) {
-      console.error('[auth] 恢复会话失败：', error)
+      logger.error('auth', '恢复会话失败', error)
       session.value = null
     }
 
