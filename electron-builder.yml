@@ -13,9 +13,17 @@ asarUnpack:
   - resources/**
 win:
   executableName: snooker
+  # 显式指定，别依赖"约定找 build/icon.ico" —— 以后换图漏改一处就会静默退回 Electron 默认图标
+  icon: build/icon.ico
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+# 自动更新清单的地址：写进 resources/app-update.yml，客户端据此拉 latest.yml。
+# 二进制不放这里 —— 安装包 132 MB，Supabase Free 单文件上限 50 MB（见 docs/10），
+# 实际走 GitHub Releases，清单里的 files[].url 由 scripts/publish-release.mjs 改写成绝对地址。
+publish:
+  provider: generic
+  url: https://endwymjjxudepmtwmfpx.supabase.co/storage/v1/object/public/releases/win
 npmRebuild: false

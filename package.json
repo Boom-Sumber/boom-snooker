@@ -17,7 +17,8 @@
     "build": "npm run typecheck && electron-vite build",
     "postinstall": "install-electron && electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
-    "build:win": "npm run build && electron-builder --win"
+    "build:win": "npm run build && electron-builder --win",
+    "release": "node scripts/publish-release.mjs"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
@@ -25,6 +26,7 @@
     "@element-plus/icons-vue": "^2.3.2",
     "@supabase/supabase-js": "^2.118.0",
     "electron-log": "^5.4.4",
+    "electron-updater": "^6.8.11",
     "pinia": "^4.1.0"
   },
   "devDependencies": {
