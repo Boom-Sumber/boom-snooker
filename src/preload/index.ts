@@ -4,7 +4,7 @@ import type { AppInfoApi } from '@shared/types/app'
 import type { AuthVaultApi } from '@shared/types/auth'
 import type { LogApi, LogLevel } from '@shared/types/log'
 import type { CacheFileInfo, LocalStoreApi } from '@shared/types/storage'
-import type { AppPreferences, SystemApi } from '@shared/types/system'
+import type { AppPreferences, AutoStartState, SystemApi } from '@shared/types/system'
 import type { ThemeApi, ThemeMode, ThemeState } from '@shared/types/theme'
 import type { WindowControls } from '@shared/types/window'
 
@@ -30,6 +30,11 @@ const api: {
       const handler = (_event: Electron.IpcRendererEvent, path: string): void => callback(path)
       ipcRenderer.on('app:navigate', handler)
       return () => ipcRenderer.removeListener('app:navigate', handler)
+    },
+    autostart: {
+      get: (): Promise<AutoStartState> => ipcRenderer.invoke('autostart:get'),
+      set: (enabled: boolean): Promise<AutoStartState> =>
+        ipcRenderer.invoke('autostart:set', enabled)
     }
   },
   log: {

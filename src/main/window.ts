@@ -31,7 +31,7 @@ export function getMainWindow(): BrowserWindow | null {
   return win && !win.isDestroyed() ? win : null
 }
 
-export function createMainWindow(): BrowserWindow {
+export function createMainWindow(options: { hidden?: boolean } = {}): BrowserWindow {
   const mainWindow = new BrowserWindow({
     // 尺寸用逻辑像素，窗口本身可缩放（铁律 9 约束的是 CSS，不是窗口初始尺寸）
     width: 1200,
@@ -48,7 +48,9 @@ export function createMainWindow(): BrowserWindow {
     }
   })
 
+  // 开机自启带 `--hidden`：窗口建好但不显示，直接留在托盘里（T10.2）
   mainWindow.on('ready-to-show', () => {
+    if (options.hidden) return
     mainWindow.show()
   })
 

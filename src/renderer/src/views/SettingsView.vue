@@ -14,7 +14,7 @@ import { ElMessage } from 'element-plus'
 import { storeToRefs } from 'pinia'
 import { useDatasetStore, useThemeStore } from '@renderer/stores'
 import type { AppInfo } from '@shared/types/app'
-import type { CloseAction } from '@shared/types/system'
+import type { AutoStartState, CloseAction } from '@shared/types/system'
 import type { ThemeMode } from '@shared/types/theme'
 
 const theme = useThemeStore()
@@ -29,6 +29,10 @@ const logPath = ref('')
 /** 本机偏好（T10.1）：关闭窗口是缩到托盘还是直接退出 */
 const closeAction = ref<CloseAction>('tray')
 const prefsReady = ref(false)
+
+/** 开机自启（T10.2）：状态以系统返回为准；dev 下不支持，开关置灰 */
+const autoStart = ref(false)
+const autoStartSupported = ref(false)
 
 const CLOSE_OPTIONS: { value: CloseAction; label: string }[] = [
   { value: 'tray', label: '最小化到托盘' },
@@ -90,6 +94,25 @@ async function onThemeChange(mode: ThemeMode): Promise<void> {
  * 先改内存让用户立刻看到反馈，再落盘；主进程写失败也不会让界面跳回去 ——
  * 偏好文件写不进去只是"下次启动不记得"，本次会话仍然按用户的选择走。
  */
+/**
+ * 改开机自启（T10.2）
+ *
+ * 以主进程返回的**实际值**为准：系统可能拒绝写入（权限/策略），
+ * 那时候开关要弹回去，不能显示一个假的成功。
+ */
+async function onAutoStartChange(value: boolean): Promise<void> {
+  try {
+    const state: AutoStartState = await window.api.system.autostart.set(value)
+    autoStart.value = state.enabled
+    autoStartSupported.value = state.supported
+    if (state.enabled !== value) {
+      ElMessage.warning('系统没有接受这个设置，可能没有权限')
+    }
+  } catch {
+    ElMessage.error('设置开机自启动失败')
+  }
+}
+
 async function onCloseActionChange(value: CloseAction): Promise<void> {
   closeAction.value = value
   try {
@@ -119,6 +142,14 @@ onMounted(async () => {
   } catch {
     // 拿不到偏好（老版本主进程 / IPC 没起来）：保持默认，不显示这块，免得误导
     prefsReady.value = false
+  }
+
+  try {
+    const state = await window.api.system.autostart.get()
+    autoStart.value = state.enabled
+    autoStartSupported.value = state.supported
+  } catch {
+    autoStartSupported.value = false
   }
 })
 
@@ -207,6 +238,22 @@ async function onCopyLogPath(): Promise<void> {
           closeAction === 'tray'
             ? '关闭窗口后程序留在后台，点托盘图标就能叫回来；要彻底退出用托盘菜单里的「退出」。'
             : '关闭窗口即结束程序，下次要重新打开。'
+        }}
+      </p>
+
+      <div class="block__row">
+        <span class="block__row-label">开机自动启动</span>
+        <el-switch
+          :model-value="autoStart"
+          :disabled="!autoStartSupported"
+          @change="onAutoStartChange"
+        />
+      </div>
+      <p class="block__hint">
+        {{
+          autoStartSupported
+            ? '开机时随 Windows 一起启动，启动后直接进托盘，不弹窗口。'
+            : '开发模式下不写系统启动项，装成安装包之后才会生效。'
         }}
       </p>
     </article>
@@ -321,6 +368,23 @@ async function onCopyLogPath(): Promise<void> {
 .block__state {
   font-size: var(--font-size-sm);
   color: var(--text-2);
+}
+
+/* 开关行：左边说明、右边开关，与上面的单选分组共用卡片布局 */
+.block__row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.875rem;
+  padding: 0.5rem 0.625rem;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+
+.block__row-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-1);
 }
 
 /* 日志路径可能很长：单行省略，完整路径放 title，需要时点「复制路径」 */

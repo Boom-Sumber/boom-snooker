@@ -24,10 +24,21 @@ export interface AppPreferences {
   trayHintShown: boolean
 }
 
+export interface AutoStartState {
+  /** 当前是否随系统启动（以系统返回为准，不是我们记的值） */
+  enabled: boolean
+  /** 当前环境是否支持（只有安装包支持，dev 下为 false） */
+  supported: boolean
+}
+
 export interface SystemApi {
   prefs: () => Promise<AppPreferences>
   /** 只传要改的字段；返回合并后的完整偏好 */
   setPrefs: (patch: Partial<AppPreferences>) => Promise<AppPreferences>
   /** 托盘菜单点了「打开设置」：主进程推过来的跳转指令 */
   onNavigate: (callback: (path: string) => void) => () => void
+  autostart: {
+    get: () => Promise<AutoStartState>
+    set: (enabled: boolean) => Promise<AutoStartState>
+  }
 }

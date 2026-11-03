@@ -2,7 +2,8 @@ import { app } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { registerAppInfoIpc } from './appInfo'
 import { registerAuthIpc } from './auth'
-import { initLogging, registerLogIpc } from './log'
+import { isHiddenLaunch, registerAutoStartIpc } from './autostart'
+import { initLogging, mainLog, registerLogIpc } from './log'
 import { registerMediaProtocol } from './media'
 import { initPreferences, registerPreferencesIpc } from './preferences'
 import { registerStoreIpc } from './store'
@@ -42,13 +43,17 @@ if (!gotSingleInstanceLock) {
     registerStoreIpc()
     registerLogIpc()
     registerPreferencesIpc()
+    registerAutoStartIpc()
 
     // 开发期 F12 开关 DevTools，生产期忽略 Ctrl+R
     app.on('browser-window-created', (_, window) => {
       optimizer.watchWindowShortcuts(window)
     })
 
-    createMainWindow()
+    // 开机自启时带 `--hidden`：只建窗口不显示，程序待在托盘里
+    const hidden = isHiddenLaunch()
+    if (hidden) mainLog.info('后台启动（--hidden），窗口不显示')
+    createMainWindow({ hidden })
 
     // 托盘必须在窗口建好之后：菜单里的"跳设置"要往窗口里发消息
     initTray({
