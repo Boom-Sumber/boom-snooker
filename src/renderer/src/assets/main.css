@@ -52,21 +52,70 @@ body {
   text-align: left;
 }
 
-/* 原生滚动条跟随主题 */
+/*
+ * 滚动条（T9.3）：全应用统一厚度与颜色
+ *
+ * - 宽度 16px、滑块透明边框 5px + `background-clip: padding-box` → 可见滑块 6px，
+ *   四周各留 5px 间隙（WebKit 滚动条没有 margin，这是唯一能做到"内缩"的写法）
+ * - 轨道透明：内容区本身是白/深底，画一条轨道反而割裂
+ * - hover 里必须重新声明 `background-clip` —— `background` 简写会把它重置成 border-box，
+ *   不重写的话滑块 hover 时会突然撑满 16px
+ */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: var(--radius-sm);
+  background: var(--text-3);
+  background-clip: padding-box;
+  border: var(--scrollbar-gap) solid transparent;
+  border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-3);
+  background: var(--text-2);
+  background-clip: padding-box;
 }
 
-::-webkit-scrollbar-track {
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+/*
+ * Element Plus 自己的滚动条（`el-scrollbar`，下拉菜单 / 表格 / 对话框正文用它）
+ *
+ * 它**不是原生滚动条**：`.el-scrollbar__bar` 是绝对定位的浮层（默认 6px、right 2px、
+ * 不透明度 .3），上面那套 `::-webkit-scrollbar` 管不到它，必须单独对齐 ——
+ * 否则会出现"内容区一条细灰条、下拉菜单一条更淡更细的条"。
+ *
+ * 对齐口径与原生一致：可见厚度 6px、离容器边缘 5px、圆角 999px、颜色 text-3 / hover text-2。
+ */
+.el-scrollbar__bar.is-vertical {
+  top: var(--scrollbar-gap);
+  bottom: var(--scrollbar-gap);
+  right: var(--scrollbar-gap);
+  width: calc(var(--scrollbar-size) - 2 * var(--scrollbar-gap));
+}
+
+.el-scrollbar__bar.is-horizontal {
+  right: var(--scrollbar-gap);
+  bottom: var(--scrollbar-gap);
+  left: var(--scrollbar-gap);
+  height: calc(var(--scrollbar-size) - 2 * var(--scrollbar-gap));
+}
+
+.el-scrollbar__bar {
+  border-radius: 999px;
+}
+
+.el-scrollbar__thumb {
+  background-color: var(--text-3);
+  border-radius: 999px;
+  opacity: 1;
+}
+
+.el-scrollbar__thumb:hover {
+  background-color: var(--text-2);
 }

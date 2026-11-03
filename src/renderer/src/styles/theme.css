@@ -64,6 +64,20 @@
   --sidebar-indicator: #f06632;
   --sidebar-width: 15rem;
   --sidebar-width-collapsed: 4.25rem;
+
+  /*
+   * 滚动条（T9.3）
+   *
+   * `--scrollbar-gap` 是滑块与轨道边缘的间隙：WebKit 滚动条没有 margin，
+   * 只能用「滑块透明边框 + background-clip: padding-box」把滑块往里缩这么多。
+   * 所以滑块实际可见厚度 = --scrollbar-size - 2 × --scrollbar-gap。
+   *
+   * 颜色不在这里定义 —— 直接用 `--text-3` / `--text-2`（见 main.css）。
+   * 自定义属性里的 `var()` 会在**声明它的元素**上就解析掉，
+   * 在这里写 `--scrollbar-thumb: var(--text-3)` 会让暗色主题继承到亮色灰。
+   */
+  --scrollbar-size: 16px;
+  --scrollbar-gap: 5px;
 }
 
 html.dark {

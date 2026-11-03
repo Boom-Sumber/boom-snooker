@@ -363,19 +363,13 @@ const pinnedActive = computed(() => matchesPath(route.path, pinnedNavItem.path))
   padding-inline: 0;
 }
 
-/* 滚动条：只覆盖菜单区，尽量收窄 */
-.sidebar__nav::-webkit-scrollbar {
-  width: 4px;
-}
-
-.sidebar__nav::-webkit-scrollbar-thumb {
-  /* 4px 已经很细，颜色用 text-3 才看得出来 */
-  background: var(--text-3);
-  border-radius: 2px;
-}
-
-.sidebar__nav::-webkit-scrollbar-track {
-  background: transparent;
+/*
+ * 滚动条统一走全局（T9.3）：不再单独覆盖宽度/颜色。
+ * 侧栏只有 15rem，16px 的滚动条会让二级菜单（居中）往左偏 8px，
+ * 用等量的右内边距补偿回来 —— 文字仍居卡片中轴。
+ */
+.sidebar__nav {
+  padding-right: calc(1rem - (var(--scrollbar-size) - 2 * var(--scrollbar-gap)) / 2);
 }
 
 .group {
