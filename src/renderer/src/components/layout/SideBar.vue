@@ -1,15 +1,29 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { Management, Setting } from '@element-plus/icons-vue'
 import {
   findGroupKeyByPath,
   matchesPath,
+  pinnedNavItem,
   visibleNavGroups,
+  type EpIconName,
   type NavGroup
 } from '@renderer/navigation/menu'
 import AppIcon from '@renderer/components/AppIcon.vue'
 import { iconSize } from '@renderer/icons'
 import { useAuthStore } from '@renderer/stores'
+
+/**
+ * Element Plus 图标映射
+ *
+ * 只在侧栏这个 chunk 里 import，`menu.ts` 保持纯数据（见那里的注释）。
+ * 新增 EP 图标时这里和 `EpIconName` 一起加，漏了会编译报错而不是运行时空图标。
+ */
+const EP_ICONS: Record<EpIconName, typeof Setting> = {
+  Setting,
+  Management
+}
 
 const props = defineProps<{ collapsed: boolean }>()
 const emit = defineEmits<{ (event: 'expand'): void }>()
@@ -121,6 +135,9 @@ function onGroupClick(group: NavGroup): void {
 function isActive(path: string): boolean {
   return matchesPath(route.path, path)
 }
+
+/** 吸底项（系统设置）的高亮：它不属于任何分组，单独算 */
+const pinnedActive = computed(() => matchesPath(route.path, pinnedNavItem.path))
 </script>
 
 <template>
@@ -144,7 +161,10 @@ function isActive(path: string): boolean {
           :aria-label="group.label"
           @click="onGroupClick(group)"
         >
-          <AppIcon :name="group.icon" :size="iconSize(group.icon)" />
+          <el-icon v-if="group.epIcon" :size="'1.25rem'">
+            <component :is="EP_ICONS[group.epIcon]" />
+          </el-icon>
+          <AppIcon v-else-if="group.icon" :name="group.icon" :size="iconSize(group.icon)" />
         </button>
 
         <template v-else>
@@ -159,7 +179,10 @@ function isActive(path: string): boolean {
             @click="onGroupClick(group)"
           >
             <span class="group__icon">
-              <AppIcon :name="group.icon" :size="iconSize(group.icon)" />
+              <el-icon v-if="group.epIcon" :size="'1.25rem'">
+                <component :is="EP_ICONS[group.epIcon]" />
+              </el-icon>
+              <AppIcon v-else-if="group.icon" :name="group.icon" :size="iconSize(group.icon)" />
             </span>
             <span class="group__label">{{ group.label }}</span>
           </button>
@@ -186,6 +209,28 @@ function isActive(path: string): boolean {
         </template>
       </div>
     </nav>
+
+    <!--
+      吸底区（D38）：系统设置固定在最下方，不随菜单滚动。
+      用 RouterLink 而不是 button + router.push —— 中键/右键"在新标签打开"这类
+      浏览器习惯虽然用不上，但焦点顺序、`aria-current` 都是白送的
+    -->
+    <div class="sidebar__footer">
+      <RouterLink
+        :to="pinnedNavItem.path"
+        class="pinned"
+        :class="{ 'is-active': pinnedActive }"
+        :title="collapsed ? pinnedNavItem.label : undefined"
+        :aria-label="pinnedNavItem.label"
+      >
+        <span class="pinned__icon">
+          <el-icon :size="'1.25rem'">
+            <component :is="EP_ICONS[pinnedNavItem.epIcon]" />
+          </el-icon>
+        </span>
+        <span v-if="!collapsed" class="pinned__label">{{ pinnedNavItem.label }}</span>
+      </RouterLink>
+    </div>
   </aside>
 </template>
 
@@ -248,7 +293,8 @@ function isActive(path: string): boolean {
   flex-direction: column;
   gap: 0.375rem;
   min-height: 0;
-  padding: 0 1rem 1.25rem;
+  /* 底部间距交给 .sidebar__footer，滚动区不再留 */
+  padding: 0 1rem 0.5rem;
   overflow-x: hidden;
   overflow-y: auto;
 }
@@ -256,6 +302,65 @@ function isActive(path: string): boolean {
 .sidebar--collapsed .sidebar__nav {
   align-items: center;
   padding-inline: 0.5rem;
+}
+
+/* ---------- 吸底区（D38） ---------- */
+
+.sidebar__footer {
+  flex: 0 0 auto;
+  padding: 0.5rem 1rem 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.sidebar--collapsed .sidebar__footer {
+  padding-inline: 0.5rem;
+}
+
+/* 与一级菜单同构：同样的高度、圆角、hover，只是少了展开箭头 */
+.pinned {
+  display: flex;
+  gap: 0.875rem;
+  align-items: center;
+  padding: 0.5rem 0.625rem;
+  font-size: 1.0625rem;
+  color: var(--sidebar-text);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.pinned:hover {
+  background: var(--sidebar-hover);
+}
+
+.pinned.is-active {
+  color: var(--sidebar-active-text);
+  background: var(--sidebar-active-bg);
+}
+
+.pinned__icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  color: inherit;
+}
+
+.pinned__label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sidebar--collapsed .pinned {
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin-inline: auto;
+  padding-inline: 0;
 }
 
 /* 滚动条：只覆盖菜单区，尽量收窄 */

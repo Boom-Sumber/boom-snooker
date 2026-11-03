@@ -7,6 +7,15 @@
 
 import type { IconName } from '@renderer/icons'
 
+/**
+ * Element Plus 图标名（只登记侧栏用得到的几个）
+ *
+ * 为什么用字符串而不是直接 import 组件：`menu.ts` 是**纯数据**，被 router / 侧栏 /
+ * 页面多处引用；把组件塞进来会让每个引用方都背上图标库。真正渲染在 `SideBar.vue`
+ * 的 `EP_ICONS` 映射里，只在侧栏这一个 chunk 里 import。
+ */
+export type EpIconName = 'Setting' | 'Management'
+
 export interface NavItem {
   label: string
   path: string
@@ -22,8 +31,10 @@ export interface NavItem {
 export interface NavGroup {
   key: string
   label: string
-  /** 一级菜单图标（AppIcon 的语义名） */
-  icon: IconName
+  /** 一级菜单图标（AppIcon 的语义名，iconfont） */
+  icon?: IconName
+  /** 一级菜单图标（Element Plus），与 `icon` 二选一，优先本项 */
+  epIcon?: EpIconName
   items: NavItem[]
 }
 
@@ -95,11 +106,28 @@ export const navGroups: NavGroup[] = [
       },
       // 用户资料和顶栏头像菜单指向同一页（旧版也是两处入口）
       { label: '用户资料', path: '/account' },
-      { label: '小键盘设置', path: '/keyboard' },
-      { label: '系统设置', path: '/settings' },
-      // 账户管理：只有管理员和超管看得见（D28）
+      { label: '小键盘设置', path: '/keyboard' }
+      // 系统设置已移到侧栏底部（D38），不再放在这里
+    ]
+  },
+  {
+    /**
+     * 管理中心（D38）
+     *
+     * 管理类入口原先散落在「更多」里，和"通知 / 用户资料"混在一起；
+     * 聚合成一级菜单后，普通用户完全看不到这块。
+     *
+     * 组内各项保留自己的 `roles`：admin 只看得到审核中心 + 账户管理，
+     * 文案管理与回收站只有超管可见 —— 分组本身没有单独的 roles 字段，
+     * 靠 `visibleNavGroups()` 的"空组自动隐藏"兜住（普通用户看不到空壳）。
+     */
+    key: 'manage',
+    label: '管理中心',
+    epIcon: 'Management',
+    items: [
       // 审核中心（T8.4）：待审评论 / 待审记录 / 已驳回
       { label: '审核中心', path: '/review', roles: ['admin', 'superadmin'] },
+      // 账户管理：只有管理员和超管看得见（D28）
       { label: '账户管理', path: '/users', roles: ['admin', 'superadmin'] },
       // 文案管理：只有超管（D31）
       { label: '文案管理', path: '/content', roles: ['superadmin'] },
@@ -108,6 +136,18 @@ export const navGroups: NavGroup[] = [
     ]
   }
 ]
+
+/**
+ * 吸底项（D38）
+ *
+ * 系统设置是"偶尔改一次"的全局入口，固定在侧栏最下方，不随菜单滚动。
+ * 它不属于任何分组，所以不放进 `navGroups`（否则会出现在可滚动区里）。
+ */
+export const pinnedNavItem: NavItem & { epIcon: EpIconName } = {
+  label: '系统设置',
+  path: '/settings',
+  epIcon: 'Setting'
+}
 
 /**
  * 按角色过滤菜单
