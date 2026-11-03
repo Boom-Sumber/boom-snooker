@@ -123,6 +123,13 @@ export const router = createRouter({
           meta: { title: '文案管理', roles: ['superadmin'] }
         },
         {
+          // 回收站（T7.2）：已软删除记录的恢复 / 物理删除，只有超管
+          path: 'recycle',
+          name: 'recycle',
+          component: () => import('@renderer/views/RecycleBinView.vue'),
+          meta: { title: '回收站', roles: ['superadmin'] }
+        },
+        {
           path: ':pathMatch(.*)*',
           name: 'not-found',
           component: () => import('@renderer/views/NotFoundView.vue'),

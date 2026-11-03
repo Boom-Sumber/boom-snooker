@@ -100,7 +100,9 @@ export const navGroups: NavGroup[] = [
       // 账户管理：只有管理员和超管看得见（D28）
       { label: '账户管理', path: '/users', roles: ['admin', 'superadmin'] },
       // 文案管理：只有超管（D31）
-      { label: '文案管理', path: '/content', roles: ['superadmin'] }
+      { label: '文案管理', path: '/content', roles: ['superadmin'] },
+      // 回收站：只有超管（T7.2），停用账号隐藏的内容不在这里
+      { label: '回收站', path: '/recycle', roles: ['superadmin'] }
     ]
   }
 ]
