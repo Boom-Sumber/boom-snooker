@@ -18,8 +18,35 @@
  */
 import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs'
 import { request } from 'node:https'
+import { lookup } from 'node:dns'
+import { Resolver } from 'node:dns/promises'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+
+/**
+ * 解析域名，系统 DNS 失败时回退公共 DNS。
+ * 本机网关对 uploads.github.com 会超时（`getaddrinfo ENOTFOUND`），
+ * 但 223.5.5.5 / 8.8.8.8 都能正常给出 IP，IP 本身也是通的。
+ */
+const DNS_FALLBACK = ['223.5.5.5', '8.8.8.8', '1.1.1.1']
+async function resolveHost(hostname) {
+  const sys = await new Promise((r) => lookup(hostname, { all: true }, (e, a) => r(e ? [] : a)))
+  if (sys.length) return sys[0].address
+  for (const server of DNS_FALLBACK) {
+    try {
+      const resolver = new Resolver({ timeout: 4000, tries: 2 })
+      resolver.setServers([server])
+      const list = await resolver.resolve4(hostname)
+      if (list.length) {
+        console.log(`  系统 DNS 解析失败，已用 ${server} 解析 ${hostname} → ${list[0]}`)
+        return list[0]
+      }
+    } catch {
+      /* 换下一个 DNS */
+    }
+  }
+  throw new Error(`无法解析 ${hostname}（系统 DNS 与公共 DNS 均失败）`)
+}
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const DIST = join(ROOT, 'dist')
@@ -100,15 +127,19 @@ async function gh(path, init = {}) {
  * 不用 fetch：undici 的 headersTimeout 默认 300 s，从请求发出就开始计时，
  * 132 MB 在慢链路上会被硬掐断。node:https + 流式 pipe 没有这个限制。
  */
-function uploadAsset(releaseId, name, filePath) {
+async function uploadAsset(releaseId, name, filePath) {
   const size = statSync(filePath).size
+  const host = 'uploads.github.com'
+  const ip = await resolveHost(host)
   return new Promise((resolvePromise, reject) => {
     const req = request(
       {
-        host: 'uploads.github.com',
+        host: ip,
+        servername: host, // TLS SNI 仍按域名，证书校验不受影响
         path: `/repos/${GH_REPO}/releases/${releaseId}/assets?name=${encodeURIComponent(name)}`,
         method: 'POST',
         headers: {
+          Host: host,
           Authorization: `Bearer ${GH_TOKEN}`,
           Accept: 'application/vnd.github+json',
           'User-Agent': 'snooker-release-script',
