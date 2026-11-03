@@ -22,9 +22,12 @@ import { imageUrl } from '@shared/media/url'
 import LazyImage from '@renderer/components/LazyImage.vue'
 import {
   listDeletedRecords,
+  listOrphanImages,
+  purgeOrphanImages,
   purgeRecord,
   restoreRecord,
   type DeletedRecord,
+  type OrphanImage,
   type RecordType
 } from '@shared/api/recycle'
 
@@ -155,6 +158,83 @@ async function onPurge(item: DeletedRecord): Promise<void> {
   // 删掉最后一条时当前页可能空了，往前退一页
   if (items.value.length === 1 && page.value > 1) page.value -= 1
   void load()
+  // 这条记录独占的图已经无引用，刷新孤儿列表让用户顺手清掉
+  void loadOrphans()
+}
+
+/* ────────────────── 孤儿图（T7.3） ────────────────── */
+
+const orphans = ref<OrphanImage[]>([])
+const orphanTotal = ref(0)
+const orphanBytes = ref(0)
+const orphanLoading = ref(false)
+const orphanError = ref('')
+/** 勾选的路径；每次扫描后默认全选（列表里每一条都确实无引用） */
+const orphanSelected = ref<string[]>([])
+const orphanPurging = ref(false)
+
+const selectedBytes = computed(() =>
+  orphans.value
+    .filter((item) => orphanSelected.value.includes(item.path))
+    .reduce((sum, item) => sum + item.bytes, 0)
+)
+
+const allOrphansSelected = computed({
+  get: () => orphans.value.length > 0 && orphanSelected.value.length === orphans.value.length,
+  set: (checked: boolean) => {
+    orphanSelected.value = checked ? orphans.value.map((item) => item.path) : []
+  }
+})
+
+function sizeText(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`
+}
+
+async function loadOrphans(): Promise<void> {
+  if (!canManage.value) return
+  orphanLoading.value = true
+  orphanError.value = ''
+  const result = await listOrphanImages({ limit: 200, offset: 0 })
+  orphanLoading.value = false
+
+  if (!result.ok) {
+    orphanError.value = result.message
+    orphans.value = []
+    orphanTotal.value = 0
+    orphanBytes.value = 0
+    orphanSelected.value = []
+    return
+  }
+  orphans.value = result.data.items
+  orphanTotal.value = result.data.total
+  orphanBytes.value = result.data.totalBytes
+  orphanSelected.value = result.data.items.map((item) => item.path)
+}
+
+async function onPurgeOrphans(): Promise<void> {
+  if (orphanSelected.value.length === 0) return
+
+  const count = orphanSelected.value.length
+  const confirmed = await ElMessageBox.confirm(
+    `将删除 ${count} 张图片（${sizeText(selectedBytes.value)}）。` +
+      '它们没有任何记录引用，删除后无法恢复。',
+    '删除孤儿图片？',
+    { type: 'error', confirmButtonText: '删除', cancelButtonText: '取消' }
+  ).catch(() => false)
+  if (confirmed === false) return
+
+  orphanPurging.value = true
+  const result = await purgeOrphanImages(orphanSelected.value)
+  orphanPurging.value = false
+
+  if (!result.ok) {
+    ElMessage.error(result.message)
+    return
+  }
+  ElMessage.success(`已删除 ${result.data.removed} 张图片`)
+  void loadOrphans()
 }
 
 onMounted(() => {
@@ -166,7 +246,9 @@ onMounted(() => {
 watch(
   () => auth.isSuperadmin,
   (allowed) => {
-    if (allowed) void load()
+    if (!allowed) return
+    void load()
+    void loadOrphans()
   }
 )
 </script>
@@ -259,6 +341,64 @@ watch(
           @current-change="onPageChange"
         />
       </div>
+
+      <!-- 孤儿图（T7.3）：桶里有、但没有任何记录引用的对象 -->
+      <section class="card orphans">
+        <header class="orphans__head">
+          <div>
+            <h2 class="orphans__title">孤儿图片</h2>
+            <p class="orphans__sub">
+              桶里有、但没有任何记录引用的对象（换图遗留、上传成功但没保存的残留）。
+              删除不可撤销；被多条记录共享的图不会出现在这里。
+            </p>
+          </div>
+          <div class="orphans__actions">
+            <el-button :loading="orphanLoading" @click="loadOrphans">重新扫描</el-button>
+            <el-button
+              type="danger"
+              plain
+              :disabled="orphanSelected.length === 0"
+              :loading="orphanPurging"
+              @click="onPurgeOrphans"
+            >
+              删除选中（{{ orphanSelected.length }}）
+            </el-button>
+          </div>
+        </header>
+
+        <p v-if="orphanError" class="orphans__hint orphans__hint--error">{{ orphanError }}</p>
+
+        <p v-else-if="!orphanLoading && orphans.length === 0" class="orphans__hint">
+          没有孤儿图片，桶是干净的。
+        </p>
+
+        <template v-else>
+          <div class="orphans__summary">
+            <el-checkbox v-model="allOrphansSelected">全选</el-checkbox>
+            <span>
+              共 {{ orphanTotal }} 张 / {{ sizeText(orphanBytes) }}
+              <template v-if="orphanTotal > orphans.length">
+                （只列出前 {{ orphans.length }} 张）
+              </template>
+              <template v-if="orphanSelected.length > 0">
+                · 已选 {{ sizeText(selectedBytes) }}
+              </template>
+            </span>
+          </div>
+
+          <el-checkbox-group v-model="orphanSelected" class="orphans__list">
+            <el-checkbox
+              v-for="item in orphans"
+              :key="item.path"
+              :value="item.path"
+              class="orphans__item"
+            >
+              <span class="orphans__path">{{ item.path }}</span>
+              <span class="orphans__size">{{ sizeText(item.bytes) }}</span>
+            </el-checkbox>
+          </el-checkbox-group>
+        </template>
+      </section>
     </template>
   </section>
 </template>
@@ -401,5 +541,100 @@ watch(
   display: flex;
   justify-content: flex-end;
   padding-top: 0.25rem;
+}
+
+.orphans {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 1.125rem 1.125rem;
+}
+
+.orphans__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.orphans__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-1);
+}
+
+.orphans__sub {
+  max-width: 44rem;
+  margin: 0.25rem 0 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+  color: var(--text-2);
+}
+
+.orphans__actions {
+  display: flex;
+  flex: none;
+  gap: 0.5rem;
+}
+
+.orphans__hint {
+  margin: 0;
+  padding: 0.75rem 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-3);
+}
+
+.orphans__hint--error {
+  color: var(--danger, #f56c6c);
+}
+
+.orphans__summary {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  font-size: var(--font-size-sm);
+  color: var(--text-2);
+}
+
+.orphans__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-height: 16rem;
+  overflow-y: auto;
+}
+
+.orphans__item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  margin: 0;
+  padding: 0.125rem 0;
+}
+
+.orphans__item :deep(.el-checkbox__label) {
+  display: flex;
+  flex: 1;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.orphans__path {
+  overflow: hidden;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+  color: var(--text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orphans__size {
+  flex: none;
+  font-size: 0.8125rem;
+  color: var(--text-3);
 }
 </style>

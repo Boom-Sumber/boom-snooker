@@ -100,3 +100,74 @@ export async function purgeRecord(type: RecordType, id: string): Promise<Recycle
   if (error) return { ok: false, message: translate(error.message ?? '') }
   return { ok: true, data: Array.isArray(data) ? (data as string[]) : [] }
 }
+
+/* ────────────────────────── 孤儿图（T7.3） ────────────────────────── */
+
+/** 桶里有、但没有任何记录引用的对象 */
+export interface OrphanImage {
+  path: string
+  bytes: number
+  created_at: string
+}
+
+/**
+ * 扫描孤儿图（服务端对账：`storage.objects` × `balls` / `advanced`）
+ *
+ * 引用计数**不分 `state` / `review_status`** —— 软删、驳回、停用隐藏的行仍然持有路径，
+ * 过滤掉会把共享图误判成孤儿。
+ */
+export async function listOrphanImages(params: {
+  limit?: number
+  offset?: number
+}): Promise<RecycleResult<{ items: OrphanImage[]; total: number; totalBytes: number }>> {
+  const { data, error } = await rpc('list_orphan_images', {
+    p_limit: params.limit ?? 200,
+    p_offset: params.offset ?? 0
+  })
+  if (error) return { ok: false, message: translate(error.message ?? '') }
+
+  const all = rows<OrphanImage & { total_count: number; total_bytes: number }>(data)
+  const items = all.map((row) => ({
+    path: row.path,
+    bytes: Number(row.bytes ?? 0),
+    created_at: row.created_at
+  }))
+  return {
+    ok: true,
+    data: {
+      items,
+      total: Number(all[0]?.total_count ?? 0),
+      totalBytes: Number(all[0]?.total_bytes ?? 0)
+    }
+  }
+}
+
+/** Storage 的 remove 单次别塞太多，分批更稳 */
+const REMOVE_BATCH = 50
+
+/**
+ * 删除孤儿图（客户端执行，Storage 对象不能从 SQL 删）
+ *
+ * ⚠️ 只能传 `listOrphanImages()` 返回的路径 —— 客户端不自己拼列表，
+ * 否则可能删到正在被引用的图。
+ */
+export async function purgeOrphanImages(
+  paths: string[]
+): Promise<RecycleResult<{ removed: number }>> {
+  const list = paths.filter((path) => path.length > 0)
+  if (list.length === 0) return { ok: true, data: { removed: 0 } }
+
+  let removed = 0
+  for (let index = 0; index < list.length; index += REMOVE_BATCH) {
+    const batch = list.slice(index, index + REMOVE_BATCH)
+    const { error } = await supabase.storage.from('images').remove(batch)
+    if (error) return { ok: false, message: `删除失败：${error.message}` }
+    removed += batch.length
+  }
+
+  // 审计（migration 035）：Storage API 不经过任何 RPC，不补这一步 `admin_actions` 里查不到
+  const { error: auditError } = await rpc('log_orphan_purge', { p_paths: list })
+  if (auditError) console.warn('[media] 孤儿图删除审计写入失败（不影响删除）：', auditError.message)
+
+  return { ok: true, data: { removed } }
+}
