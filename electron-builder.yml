@@ -5,6 +5,11 @@ directories:
 files:
   - '!**/.vscode/*'
   - '!src/*'
+  # 备份的旧产物绝不能进包：它们体积是几百 MB，一旦被打进 app 的 7z，
+  # 安装包会从 130 MB 涨到数 GB，NSIS 直接 "failed creating mmap"
+  - '!dist.bak*/**'
+  - '!out.bak*/**'
+  - '!pkg*/**'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
@@ -19,7 +24,16 @@ nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
+  # 辅助式安装（有向导），不是一点就装的静默包
+  oneClick: false
+  # 向导里可以选择安装目录；静默安装（自动更新）时仍沿用注册表里的旧目录
+  allowToChangeInstallationDirectory: true
+  # 快捷方式由用户勾选（勾选框在 build/installer.nsh 的自定义页里），
+  # 这里必须为 true，否则 electron-builder 不建也不在卸载时清理
   createDesktopShortcut: always
+  createStartMenuShortcut: true
+  runAfterFinish: true
+  include: build/installer.nsh
 # 自动更新清单的地址：写进 resources/app-update.yml，客户端据此拉 latest.yml。
 # 二进制不放这里 —— 安装包 132 MB，Supabase Free 单文件上限 50 MB（见 docs/10），
 # 实际走 GitHub Releases，清单里的 files[].url 由 scripts/publish-release.mjs 改写成绝对地址。

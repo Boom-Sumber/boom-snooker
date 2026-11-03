@@ -14,7 +14,7 @@
  * 需要的环境变量（写在 .env.local，不入库）：
  *   SUPABASE_SERVICE_ROLE_KEY  发布机专用，**绝不能进客户端**
  *   GH_TOKEN                   只需目标仓库的 contents:write
- *   GH_REPO                    owner/repo，默认 Boom-Sumber/boom-snooker-releases
+ *   GH_REPO                    owner/repo，默认 Boom-Sumber/boom-snooker（源码已开源，直接用主仓库 Releases）
  */
 import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs'
 import { request } from 'node:https'
@@ -41,7 +41,7 @@ const env = { ...loadEnv(), ...process.env }
 const SUPABASE_URL = (env.VITE_SUPABASE_URL || '').replace(/\/+$/, '')
 const SERVICE_KEY = env.SUPABASE_SERVICE_ROLE_KEY || ''
 const GH_TOKEN = env.GH_TOKEN || ''
-const GH_REPO = env.GH_REPO || 'Boom-Sumber/boom-snooker-releases'
+const GH_REPO = env.GH_REPO || 'Boom-Sumber/boom-snooker'
 const BUCKET = 'releases'
 /** 清单在桶里的固定位置；客户端的 app-update.yml 指向它，不能按版本变 */
 const MANIFEST_PATH = 'win/latest.yml'
