@@ -75,6 +75,19 @@ const MANIFEST_PATH = 'win/latest.yml'
 /** 更新策略（最低可用版本），与清单同目录，客户端按 feed 地址拼出来 */
 const POLICY_PATH = 'win/policy.json'
 
+/**
+ * 下载加速前缀（2026-11-03 实测后加的）
+ *
+ * 二进制在 GitHub，但国内直连 **23 KB/s**（130 MB 要 1.6 小时）。同一个包走
+ * `v4.gh-proxy.org` 实测 **8.8 MB/s、15 秒下完**，所以清单里的 url 写成
+ * `<前缀><GitHub 原始地址>`。GitHub 页面上的官方附件地址不变，只是客户端从这里取。
+ *
+ * 改法：`.env.local` 里 `GH_MIRROR=https://xxx/`（留空 = 用 GitHub 直连）。
+ * 代理挂了不要紧 —— 重新发一次清单即可（`--manifest-only`，秒级，不用重传安装包）。
+ */
+const MIRROR = (env.GH_MIRROR ?? 'https://v4.gh-proxy.org/').trim()
+const mirrorPrefix = MIRROR ? MIRROR.replace(/\/*$/, '/') : ''
+
 const argv = process.argv.slice(2)
 const flag = (name) => argv.includes(`--${name}`)
 const value = (name, fallback = '') => {
@@ -85,6 +98,8 @@ const value = (name, fallback = '') => {
 const notes = value('notes', '')
 const minSupported = value('min', '')
 const dryRun = flag('dry-run')
+/** 只重发清单 + 策略 + 版本表，不上传二进制（换镜像 / 改最低版本时用） */
+const manifestOnly = flag('manifest-only')
 
 function fail(message) {
   console.error(`\n✗ ${message}\n`)
@@ -241,6 +256,9 @@ async function main() {
   let release = null
   if (dryRun) {
     console.log('  dry-run：跳过 GitHub 与 Supabase')
+  } else if (manifestOnly) {
+    // 只改清单（比如换下载镜像）：安装包已经在 release 上了，重传 130 MB 没意义
+    console.log('  --manifest-only：跳过 release 与附件上传')
   } else {
     try {
       release = await gh(`/repos/${GH_REPO}/releases/tags/${tag}`)
@@ -265,7 +283,10 @@ async function main() {
     await ensureAsset(release.id, `${exeName}.blockmap`, blockmapPath)
   }
 
-  const installerUrl = `https://github.com/${GH_REPO}/releases/download/${tag}/${exeName}`
+  /** GitHub 上的官方地址（写进 release 页面，也是清单里的原始地址） */
+  const officialUrl = `https://github.com/${GH_REPO}/releases/download/${tag}/${exeName}`
+  /** 客户端真正去下的地址：拼上加速前缀（没配前缀时就是官方地址） */
+  const installerUrl = mirrorPrefix ? `${mirrorPrefix}${officialUrl}` : officialUrl
   const blockmapUrl = `${installerUrl}.blockmap`
 
   step('改写清单并传到 Storage')
@@ -330,7 +351,8 @@ async function main() {
       channel: 'stable',
       min_supported_version: minSupported || null,
       notes: notes || null,
-      installer_url: installerUrl,
+      // 表里记 GitHub 官方地址（长期有效）；镜像只体现在清单里，随时可换
+      installer_url: officialUrl,
       installer_size: exeSize,
       sha512,
       blockmap_url: blockmapUrl,
@@ -358,8 +380,11 @@ async function main() {
   }
   console.log(`  ✓ 公开策略 min_supported_version=${minSeen}`)
   if (res.headers.get('cache-control')) console.log(`  cache-control: ${res.headers.get('cache-control')}`)
+  // 清单里的下载地址必须和这次用的镜像一致，否则客户端还会去直连 GitHub 慢慢爬
+  if (!text.includes(installerUrl)) fail('公开清单里的下载地址与本次生成的地址不一致')
+  console.log(`  ✓ 清单下载地址 ${mirrorPrefix ? '已走加速前缀' : '为 GitHub 直连'}`)
 
-  console.log(`\n✓ 发布完成：${tag}\n  安装包 ${installerUrl}\n  清单   ${publicManifest}\n`)
+  console.log(`\n✓ 发布完成：${tag}\n  下载地址 ${installerUrl}\n  官方附件 ${officialUrl}\n  清单     ${publicManifest}\n`)
 }
 
 main().catch((err) => fail(err?.status ? err.message : err?.stack || String(err)))
