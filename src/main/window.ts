@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'node:path'
 import { is } from '@electron-toolkit/utils'
 import { getPreferences } from './preferences'
@@ -41,6 +41,8 @@ export function createMainWindow(options: { hidden?: boolean } = {}): BrowserWin
     show: false,
     frame: false,
     autoHideMenuBar: true,
+    // dev 下任务栏取的是窗口图标（打包后取 exe 内嵌的 icon.ico）
+    icon: join(app.getAppPath(), 'resources', 'icon.png'),
     backgroundColor: initialBackground(),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

@@ -44,11 +44,13 @@ export function requestQuit(): void {
 /**
  * 托盘图标路径
  *
- * 优先 `resources/icon.png`（打包后仍存在），其次 `build/`（dev 时用得上）。
- * 都找不到就返回 null —— 托盘没图标会静默失败，宁可自己 log 一条也别猜。
+ * 顺序：`resources/tray.png`（32×32 专用小图）→ `resources/icon.png`（256）→ `build/`（dev 兜底）。
+ * 为什么托盘要单独一张：1024/256 缩到 16px 会把 15 颗球糊成一团红，托盘图必须是小尺寸可辨认的版本
+ * （`scripts/make-icons.js` 生成）。打包后 `resources/` 在 asarUnpack 里，dev 下就是源码目录。
  */
 function trayIconPath(): string | null {
   const candidates = [
+    join(app.getAppPath(), 'resources', 'tray.png'),
     join(app.getAppPath(), 'resources', 'icon.png'),
     join(app.getAppPath(), 'build', 'icon.png')
   ]

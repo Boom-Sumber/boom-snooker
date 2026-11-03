@@ -6,7 +6,9 @@ import vueParser from 'vue-eslint-parser'
 
 export default defineConfig(
   // .workbuddy-ai 是 AI 助手的本地临时脚本目录（已在 .gitignore），不参与检查
-  { ignores: ['**/node_modules', '**/dist', '**/out', '**/.workbuddy-ai'] },
+  // `scripts/` 是**独立工具脚本**（用 `npx electron scripts/xxx.js` 直接跑，不参与打包），
+  // 不在 tsconfig 的 include 里，套 TS 规则只会得到一堆 "require 被禁止" 的噪音
+  { ignores: ['**/node_modules', '**/dist', '**/out', '**/.workbuddy-ai', 'scripts/**'] },
   tseslint.configs.recommended,
   eslintPluginVue.configs['flat/recommended'],
   {
