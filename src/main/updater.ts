@@ -179,6 +179,12 @@ async function applyPolicy(newVersion: string | null): Promise<void> {
   const min = await fetchMinSupportedVersion()
   state.minSupportedVersion = min
   state.mandatory = Boolean(min && newVersion && compareVersion(state.currentVersion, min) < 0)
+  mainLog.info(
+    'updater',
+    min
+      ? `最低可用版本 ${min}，当前 v${state.currentVersion}${state.mandatory ? '（低于最低版本，强制更新）' : ''}`
+      : '未取到更新策略（policy.json），按非强制处理'
+  )
   broadcast()
 }
 
