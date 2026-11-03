@@ -265,9 +265,8 @@ async function save(): Promise<void> {
       return
     }
 
-    ElMessage.success(
-      auth.isAdmin ? (isEdit.value ? '已保存' : '已新增') : '已提交，等待管理员审核'
-    )
+    // D32：管理员提交也要审核 —— 管理员的内容由超管审，高级用户的由邀请他的管理员审
+    ElMessage.success(auth.isAdmin ? '已提交，等待超级管理员审核' : '已提交，等待管理员审核')
     emit('saved')
     close()
   } catch (error) {
