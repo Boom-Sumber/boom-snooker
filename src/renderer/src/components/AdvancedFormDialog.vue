@@ -153,13 +153,15 @@ async function save(): Promise<void> {
   if (!valid) return
 
   saving.value = true
-  const uploaded: string[] = []
+  // 只有「本次真新建」的路径才进这里：命中已有对象时删了会让别的记录裂图（T7.1）
+  const createdPaths: string[] = []
 
   try {
     let path = image.path
     if (image.file) {
-      path = await uploadImage(image.file, 'advanced')
-      uploaded.push(path)
+      const uploaded = await uploadImage(image.file, 'advanced')
+      if (uploaded.created) createdPaths.push(uploaded.path)
+      path = uploaded.path
     }
 
     const result = await upsertAdvanced(
@@ -175,7 +177,7 @@ async function save(): Promise<void> {
     )
 
     if (!result.ok) {
-      await removeUploadedImages(uploaded)
+      await removeUploadedImages(createdPaths)
       if (result.conflict) {
         void dataset.sync(true)
         ElMessage.warning(result.message ?? '数据已被其他人更新')
@@ -191,7 +193,7 @@ async function save(): Promise<void> {
     emit('saved')
     close()
   } catch (error) {
-    await removeUploadedImages(uploaded)
+    await removeUploadedImages(createdPaths)
     ElMessage.error(error instanceof Error ? error.message : '保存失败')
   } finally {
     saving.value = false

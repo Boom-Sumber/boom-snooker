@@ -215,7 +215,8 @@ async function save(): Promise<void> {
   if (!valid) return
 
   saving.value = true
-  const uploaded: string[] = []
+  // 只有「本次真新建」的路径才进这里：命中已有对象时删了会让别的记录裂图（T7.1）
+  const createdPaths: string[] = []
 
   try {
     // 1. 只上传"这次新选的"图；没换的沿用原路径
@@ -227,9 +228,9 @@ async function save(): Promise<void> {
     for (const slot of IMAGE_SLOTS) {
       const file = images[slot.key].file
       if (file) {
-        const path = await uploadImage(file)
-        uploaded.push(path)
-        paths[slot.key] = path
+        const image = await uploadImage(file)
+        if (image.created) createdPaths.push(image.path)
+        paths[slot.key] = image.path
       }
     }
 
@@ -254,7 +255,7 @@ async function save(): Promise<void> {
 
     if (!result.ok) {
       // 3. 失败回滚：把刚传上去的图删掉，不留孤儿
-      await removeUploadedImages(uploaded)
+      await removeUploadedImages(createdPaths)
       if (result.conflict) {
         void dataset.sync(true)
         ElMessage.warning(result.message ?? '数据已被其他人更新')
@@ -270,7 +271,7 @@ async function save(): Promise<void> {
     emit('saved')
     close()
   } catch (error) {
-    await removeUploadedImages(uploaded)
+    await removeUploadedImages(createdPaths)
     const message = error instanceof Error ? error.message : '保存失败'
     ElMessage.error(message)
   } finally {
