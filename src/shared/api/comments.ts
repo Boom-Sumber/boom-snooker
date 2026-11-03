@@ -91,6 +91,7 @@ export function translateCommentError(message: string): string {
   if (raw.includes('EMPTY_CONTENT')) return '评论内容不能为空'
   if (raw.includes('TOO_LONG')) return '评论最多 300 字'
   if (raw.includes('TARGET_NOT_FOUND')) return '这条内容不在了，刷新一下再试'
+  if (raw.includes('SUPERADMIN_NO_COMMENT')) return '超级管理员不参与评论'
   if (raw.includes('ACCOUNT_DISABLED')) return '账号已停用，请联系管理员'
   if (raw.includes('AUTH_REQUIRED')) return '请先登录再评论'
   if (raw.includes('BAD_TYPE') || raw.includes('BAD_TARGET')) return '评论目标不合法'

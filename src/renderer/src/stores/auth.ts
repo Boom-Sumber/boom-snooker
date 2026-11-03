@@ -50,9 +50,10 @@ export const useAuthStore = defineStore('auth', () => {
   const gender = computed<Gender>(() => (profile.value?.gender === 'female' ? 'female' : 'male'))
 
   /** 能写记录（投稿）：高级 / 管理员 / 超管 */
-  const canWrite = computed(() =>
-    (['advanced', 'admin', 'superadmin'] as string[]).includes(role.value)
-  )
+  // D35：超管只做全局管控，**不参与内容生产**（新增 / 编辑 / 上传 / 评论）
+  // 后端 `can_write_records()` 本来就不含 superadmin，这里必须对齐，
+  // 否则超管会看到「新增 / 编辑」按钮，点了保存必报 FORBIDDEN
+  const canWrite = computed(() => (['advanced', 'admin'] as string[]).includes(role.value))
   /** 能审核：管理员 / 超管（超管只做用户权限，见 docs/03 第 9 节，审核入口按 admin 判断） */
   const isAdmin = computed(() => (['admin', 'superadmin'] as string[]).includes(role.value))
   const isSuperadmin = computed(() => role.value === 'superadmin')

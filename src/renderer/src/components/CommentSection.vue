@@ -234,7 +234,8 @@ watch(
     </el-button>
 
     <!-- 输入区：登录才给输入框，未登录直接引导去登录 -->
-    <div v-if="auth.isSignedIn" class="comments__composer">
+    <!-- D35：超管只做全局管控，不参与评论（审核评论走审核队列） -->
+    <div v-if="auth.isSignedIn && !auth.isSuperadmin" class="comments__composer">
       <el-input
         v-model="draft"
         type="textarea"
@@ -250,6 +251,10 @@ watch(
           发送
         </el-button>
       </div>
+    </div>
+
+    <div v-else-if="auth.isSuperadmin" class="comments__signin">
+      <span class="comments__hint">超级管理员不参与评论；评论请在审核队列里处理</span>
     </div>
 
     <div v-else class="comments__signin">
