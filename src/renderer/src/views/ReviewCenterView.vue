@@ -37,6 +37,8 @@ const counts = reactive({ comment: 0, record: 0, rejected: 0 })
 const recent = ref<RecentReview[]>([])
 /** 待审超过 12 小时的数量（超管才看得到） */
 const staleCount = ref(0)
+/** 只在首次拿到计数时自动选页签，之后不再抢用户的选择 */
+const tabInitialized = ref(false)
 const recentLoading = ref(false)
 const recentError = ref('')
 
@@ -69,6 +71,20 @@ async function loadCounts(): Promise<void> {
   counts.comment = comment.ok ? comment.data : 0
   counts.record = record.ok ? record.data : 0
   counts.rejected = rejected.ok ? rejected.data.total : 0
+
+  // 首次进入：停在"有东西"的那一栏，避免出现"提示有 1 条待审、打开却是空列表"
+  if (!tabInitialized.value) {
+    tabInitialized.value = true
+    if (counts.comment > 0) tab.value = 'comment'
+    else if (counts.record > 0) tab.value = 'record'
+    else if (counts.rejected > 0) tab.value = 'rejected'
+  }
+}
+
+/** 点提示条直接跳到有积压的那一栏 */
+function goFirstPending(): void {
+  if (counts.record > 0) tab.value = 'record'
+  else if (counts.comment > 0) tab.value = 'comment'
 }
 
 async function loadRecent(): Promise<void> {
@@ -150,7 +166,8 @@ watch(
       show-icon
       :closable="false"
       :title="`有 ${staleCount} 条待审已超过 12 小时未处理`"
-      description="已给超级管理员发送提醒；管理员长时间不在线时，超管可以直接在「待审记录 / 待审评论」里代为处理。"
+      description="已给超级管理员发送提醒。点这里直接跳到待审列表，代为处理。"
+      @click="goFirstPending"
     />
 
     <div v-if="!canManage" class="card empty">
@@ -257,6 +274,7 @@ watch(
 
 .stale-alert {
   border-radius: var(--radius-md);
+  cursor: pointer;
 }
 
 .body {

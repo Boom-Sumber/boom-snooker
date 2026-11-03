@@ -158,6 +158,10 @@ function loadAll(): void {
 
 /** 打开时优先停在"有东西要审"的那一页 */
 function pickTab(): 'comment' | 'record' {
+  // 单类型模式（审核中心页面复用）下类型是外部指定的，不能"猜"——
+  // 之前这里无条件按计数选，导致传了 only="record" 的实例又被切回评论，列表永远是空的
+  if (props.only) return props.only
+
   const c = props.commentCount ?? 0
   const r = props.recordCount ?? 0
   if (c === 0 && r > 0) return 'record'
