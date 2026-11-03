@@ -9,6 +9,7 @@
  */
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { supabase } from '../api/client'
+import { isNetworkError, NETWORK_ERROR_TEXT } from '../net/online'
 import type { Tables } from '../types/db'
 import { clearAuthVault } from './storage'
 
@@ -49,10 +50,8 @@ function translateAuthError(error: { code?: string; message?: string; status?: n
   // D27：邀请码校验失败由 handle_new_user 抛异常，GoTrue 会把 token 原样透出
   if (message.includes('INVITE_CODE_REQUIRED')) return '请填写邀请码'
   if (message.includes('INVITE_CODE_INVALID')) return '邀请码无效或已停用，找邀请你的人确认'
-  if (message.includes('Failed to fetch') || message.includes('fetch failed')) {
-    return '连不上服务器，检查一下网络'
-  }
-  if (error.status === 0) return '连不上服务器，检查一下网络'
+  if (isNetworkError(message)) return NETWORK_ERROR_TEXT
+  if (error.status === 0) return NETWORK_ERROR_TEXT
   return message || '登录失败，请重试'
 }
 
@@ -157,9 +156,7 @@ function translateProfileError(error: { message?: string; code?: string }): stri
   if (raw.includes('profiles_nickname_check')) return '昵称要 1~24 个字'
   if (raw.includes('profiles_gender_check')) return '性别只能是男或女'
   if (raw.includes('permission denied') || error.code === '42501') return '没有权限修改资料'
-  if (raw.includes('Failed to fetch') || raw.includes('fetch failed')) {
-    return '连不上服务器，检查一下网络'
-  }
+  if (isNetworkError(raw)) return NETWORK_ERROR_TEXT
   return raw || '保存失败'
 }
 

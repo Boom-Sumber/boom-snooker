@@ -8,6 +8,7 @@
  * 前端把入口藏起来只是"少犯错"，权限判断在 RPC 里。
  */
 import { supabase } from './client'
+import { isNetworkError, NETWORK_ERROR_TEXT } from '../net/online'
 import type { SiteSection } from '../types/content'
 
 export type ContentResult = { ok: true } | { ok: false; message: string }
@@ -29,9 +30,7 @@ export function translateContentError(message: string): string {
   if (raw.includes('site_sections_intro_check')) return '引言最多 200 个字'
   if (raw.includes('site_points_label_check')) return '标签最多 12 个字'
   if (raw.includes('site_points_body_check')) return '每条正文要 1~500 个字'
-  if (raw.includes('Failed to fetch') || raw.includes('fetch failed')) {
-    return '连不上服务器，检查一下网络'
-  }
+  if (isNetworkError(raw)) return NETWORK_ERROR_TEXT
   return raw || '保存失败，请重试'
 }
 

@@ -14,6 +14,7 @@
  *   · 审核驳回（`review_status = 'rejected'`）不算删除，不进回收站
  */
 import { supabase } from './client'
+import { isNetworkError, NETWORK_ERROR_TEXT } from '../net/online'
 
 export type RecordType = 'ball' | 'advanced'
 
@@ -52,9 +53,7 @@ function translate(message: string): string {
   if (raw.includes('BAD_TYPE')) return '非法操作'
   if (raw.includes('NOT_FOUND')) return '这条记录已经不在回收站里了'
   if (raw.includes('OWNER_DISABLED')) return '作者账号已停用，请先在账户管理里恢复账号'
-  if (raw.includes('Failed to fetch') || raw.includes('fetch failed')) {
-    return '连不上服务器，检查一下网络'
-  }
+  if (isNetworkError(raw)) return NETWORK_ERROR_TEXT
   return raw || '操作失败'
 }
 

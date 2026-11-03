@@ -30,6 +30,28 @@ body {
   overflow-wrap: anywhere;
 }
 
+/*
+ * 离线时"为什么这个按钮不能点"的说明（T6.1）
+ * 弹窗底部、列表操作区共用；放在全局是因为 scoped 样式跨不了组件
+ */
+.offline-write-hint {
+  font-size: var(--font-size-sm);
+  color: var(--warning);
+}
+
+/* 弹窗底部：说明靠左、按钮靠右（el-dialog 默认 text-align: right，排不下提示） */
+.dialog-footer {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.dialog-footer .offline-write-hint {
+  margin-right: auto;
+  text-align: left;
+}
+
 /* 原生滚动条跟随主题 */
 ::-webkit-scrollbar {
   width: 10px;

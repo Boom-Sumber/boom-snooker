@@ -9,6 +9,7 @@
  *   · 其余    —— 审核结果（带审核人与审核时间，只有作者本人能看到）
  */
 import { supabase } from './client'
+import { isNetworkError, NETWORK_ERROR_TEXT } from '../net/online'
 
 export type NotificationKind =
   | 'comment_visible'
@@ -54,9 +55,7 @@ export function translateNotificationError(message: string): string {
   if (raw.includes('EMPTY_TITLE')) return '标题不能为空'
   if (raw.includes('TITLE_TOO_LONG')) return '标题最多 60 字'
   if (raw.includes('BODY_TOO_LONG')) return '正文最多 500 字'
-  if (raw.includes('Failed to fetch') || raw.includes('fetch failed')) {
-    return '连不上服务器，检查一下网络'
-  }
+  if (isNetworkError(raw)) return NETWORK_ERROR_TEXT
   return raw || '操作失败，请重试'
 }
 

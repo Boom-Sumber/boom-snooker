@@ -18,6 +18,7 @@ import type { Json } from '../types/db'
 import type { Tables } from '../types/db'
 import type { SiteSection } from '../types/content'
 import { supabase } from '../api/client'
+import { isNetworkError } from '../net/online'
 import { CACHE_NAMES, peekCache, readCache, writeCache } from '../storage/local'
 
 /** 一份完整快照（就是 `get_dataset_snapshot()` 返回的结构 + 本地写入时间） */
@@ -120,21 +121,10 @@ async function fetchRemoteSnapshot(): Promise<DatasetSnapshot> {
   return { ...snapshot, savedAt: Date.now() }
 }
 
-/** 网络类错误（超时 / 连不上）判定 —— 这类错误要降级成 offline，而不是 error */
-function isNetworkError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false
-  const name = (error as { name?: string }).name ?? ''
-  const message = (error as { message?: string }).message ?? ''
-  return (
-    name === 'AbortError' ||
-    name === 'TimeoutError' ||
-    name === 'TypeError' || // fetch 网络层失败在浏览器里是 TypeError: Failed to fetch
-    message.includes('Failed to fetch') ||
-    message.includes('fetch failed') ||
-    message.includes('NetworkError')
-  )
-}
-
+/**
+ * 判定统一放在 `shared/net/online.ts`（8 个 api 模块共用同一份）。
+ * 这里保留一个本地别名只是为了让下面两处调用读起来顺。
+ */
 function describeError(error: unknown): string {
   if (isNetworkError(error)) return '连不上服务器，先用本地数据'
   if (error && typeof error === 'object' && 'message' in error) {

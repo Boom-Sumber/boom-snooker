@@ -6,10 +6,11 @@
  */
 import { useAuthStore } from './auth'
 import { useDatasetStore } from './dataset'
+import { useNetworkStore } from './network'
 import { useThemeStore } from './theme'
 import { useUiStore } from './ui'
 
-export { useAuthStore, useDatasetStore, useThemeStore, useUiStore }
+export { useAuthStore, useDatasetStore, useNetworkStore, useThemeStore, useUiStore }
 
 /** 常用行类型一并从这里出，组件不用再深到 db.ts / shared */
 export type { Advanced, Ball, DictRow, SyncState } from './dataset'
@@ -24,6 +25,11 @@ export type { Profile, RoleCode } from '@shared/auth'
  * 所以这里故意不 await —— 谁先回来谁先更新界面。
  */
 export function bootstrapStores(): void {
+  // 网络层先起来：重试动作就是"同步一次"，注入进去避免 stores 之间互相 import
+  const network = useNetworkStore()
+  network.setRetryHandler(() => useDatasetStore().sync())
+  network.init()
+
   void useDatasetStore().init()
   void useAuthStore()
     .init()

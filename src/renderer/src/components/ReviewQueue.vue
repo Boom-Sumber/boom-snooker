@@ -16,7 +16,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AuthorTag from './AuthorTag.vue'
-import { useDatasetStore } from '@renderer/stores'
+import { useDatasetStore, useNetworkStore } from '@renderer/stores'
 import { listPendingComments, reviewComment, type PendingComment } from '@shared/api/comments'
 import { listPendingRecords, reviewRecord, type PendingRecord } from '@shared/api/review'
 
@@ -42,6 +42,8 @@ const emit = defineEmits<{
 
 const router = useRouter()
 const dataset = useDatasetStore()
+/** 离线时审核按钮全部置灰（T6.1） */
+const network = useNetworkStore()
 
 const tab = ref<'comment' | 'record'>(props.only ?? 'comment')
 
@@ -283,6 +285,10 @@ watch(
   <el-tabs v-model="tab" :class="{ 'review--bare': !!only }">
     <!-- ── 评论 ── -->
     <el-tab-pane :label="commentLabel" name="comment">
+      <!-- 离线说明（T6.1）：审核是写操作，必须联网；按钮同时置灰 -->
+      <p v-if="network.offline" class="offline-write-hint review__offline">
+        离线状态下无法审核，恢复网络后再处理待审内容
+      </p>
       <p v-if="errorComments" class="review__error">
         {{ errorComments }}
         <el-button text type="primary" size="small" @click="loadComments">重试</el-button>
@@ -310,7 +316,7 @@ watch(
             </el-button>
             <el-button
               size="small"
-              :disabled="actingId === item.id"
+              :disabled="actingId === item.id || network.offline"
               :loading="actingId === item.id"
               @click="rejectComment(item)"
             >
@@ -319,7 +325,7 @@ watch(
             <el-button
               size="small"
               type="primary"
-              :disabled="actingId === item.id"
+              :disabled="actingId === item.id || network.offline"
               :loading="actingId === item.id"
               @click="approveComment(item)"
             >
@@ -332,6 +338,9 @@ watch(
 
     <!-- ── 记录 ── -->
     <el-tab-pane :label="recordLabel" name="record">
+      <p v-if="network.offline" class="offline-write-hint review__offline">
+        离线状态下无法审核，恢复网络后再处理待审内容
+      </p>
       <p v-if="errorRecords" class="review__error">
         {{ errorRecords }}
         <el-button text type="primary" size="small" @click="loadRecords">重试</el-button>
@@ -360,7 +369,7 @@ watch(
             </el-button>
             <el-button
               size="small"
-              :disabled="actingId === item.id"
+              :disabled="actingId === item.id || network.offline"
               :loading="actingId === item.id"
               @click="rejectRecord(item)"
             >
@@ -369,7 +378,7 @@ watch(
             <el-button
               size="small"
               type="primary"
-              :disabled="actingId === item.id"
+              :disabled="actingId === item.id || network.offline"
               :loading="actingId === item.id"
               @click="approveRecord(item)"
             >
@@ -386,6 +395,11 @@ watch(
 /* 审核中心页面里由外层页签控制类型，这里不需要再显示一层页签 */
 .review--bare :deep(.el-tabs__header) {
   display: none;
+}
+
+.review__offline {
+  margin: 0 0 0.5rem;
+  font-size: var(--font-size-sm);
 }
 
 .review__error {

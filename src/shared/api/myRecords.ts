@@ -9,6 +9,7 @@
  * 这两个接口只认 `owner = auth.uid()`，别人的记录一律 `FORBIDDEN`。
  */
 import { supabase } from './client'
+import { isNetworkError, NETWORK_ERROR_TEXT } from '../net/online'
 import type { Tables } from '../types/db'
 
 export type ReviewStatus = 'pending' | 'visible' | 'rejected'
@@ -55,9 +56,7 @@ function translate(message: string): string {
   if (raw.includes('AUTH_REQUIRED')) return '请先登录'
   if (raw.includes('NOT_FOUND')) return '这条内容已经不在了'
   if (raw.includes('FORBIDDEN')) return '这不是你的投稿'
-  if (raw.includes('Failed to fetch') || raw.includes('fetch failed')) {
-    return '连不上服务器，检查一下网络'
-  }
+  if (isNetworkError(raw)) return NETWORK_ERROR_TEXT
   return raw || '操作失败，请重试'
 }
 

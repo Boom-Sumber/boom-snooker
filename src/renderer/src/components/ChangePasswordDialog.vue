@@ -15,13 +15,15 @@
  */
 import { reactive, ref, watch } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { useAuthStore } from '@renderer/stores'
+import { useAuthStore, useNetworkStore } from '@renderer/stores'
 
 const props = defineProps<{ visible: boolean }>()
 
 const emit = defineEmits<{ (event: 'update:visible', value: boolean): void }>()
 
 const auth = useAuthStore()
+/** 改密要走 GoTrue，离线禁用（T6.1） */
+const network = useNetworkStore()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
 const errorMessage = ref('')
@@ -149,7 +151,9 @@ async function submit(): Promise<void> {
 
     <template #footer>
       <el-button :disabled="loading" @click="close">取消</el-button>
-      <el-button type="primary" :loading="loading" @click="submit">确认修改</el-button>
+      <el-button type="primary" :loading="loading" :disabled="network.offline" @click="submit">
+        确认修改
+      </el-button>
     </template>
   </el-dialog>
 </template>

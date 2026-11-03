@@ -6,6 +6,7 @@
  * 所以在这里统一翻成中文，两个 API 模块共用一份，避免文案各写一遍。
  */
 import type { Json } from '../types/db'
+import { isNetworkError, NETWORK_ERROR_TEXT } from '../net/online'
 
 export interface WriteResult {
   ok: boolean
@@ -29,8 +30,10 @@ export function translateError(error: { message?: string; code?: string } | null
   if (raw.includes('duplicate key')) {
     return { ok: false, message: '这条记录已经存在' }
   }
-  if (raw.includes('Failed to fetch') || raw.includes('fetch failed') || error?.code === '') {
-    return { ok: false, message: '连不上服务器，检查一下网络' }
+  // supabase-js 在网络失败时给的 code 是空串，单靠文案可能漏（不同运行时文案不同），
+  // 所以两者取或 —— 判定本身统一在 shared/net/online.ts
+  if (isNetworkError(raw) || error?.code === '') {
+    return { ok: false, message: NETWORK_ERROR_TEXT }
   }
   return { ok: false, message: raw || '保存失败' }
 }

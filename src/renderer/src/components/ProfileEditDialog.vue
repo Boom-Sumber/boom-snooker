@@ -19,7 +19,7 @@ import {
   type AvatarKey,
   type Gender
 } from '@renderer/assets/avatars'
-import { useAuthStore } from '@renderer/stores'
+import { useAuthStore, useNetworkStore } from '@renderer/stores'
 
 const props = defineProps<{ visible: boolean }>()
 
@@ -29,6 +29,8 @@ const emit = defineEmits<{
 }>()
 
 const auth = useAuthStore()
+/** 离线时不允许保存资料（T6.1）：profiles 更新要联网 */
+const network = useNetworkStore()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
 const errorMessage = ref('')
@@ -161,7 +163,9 @@ async function save(): Promise<void> {
 
     <template #footer>
       <el-button :disabled="loading" @click="close">取消</el-button>
-      <el-button type="primary" :loading="loading" @click="save">保存</el-button>
+      <el-button type="primary" :loading="loading" :disabled="network.offline" @click="save">
+        保存
+      </el-button>
     </template>
   </el-dialog>
 </template>

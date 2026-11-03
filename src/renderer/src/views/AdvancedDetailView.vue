@@ -17,7 +17,7 @@ import { ArrowLeftBold } from '@element-plus/icons-vue'
 import AdvancedFormDialog from '@renderer/components/AdvancedFormDialog.vue'
 import CommentSection from '@renderer/components/CommentSection.vue'
 import { CATEGORY_LABELS } from '@renderer/navigation/menu'
-import { useAuthStore, useDatasetStore, type Advanced } from '@renderer/stores'
+import { useAuthStore, useDatasetStore, useNetworkStore, type Advanced } from '@renderer/stores'
 import { imageUrl } from '@shared/media/url'
 import { deleteAdvanced } from '@shared/api/advanced'
 import { getReviewAdvanced, reviewRecord } from '@shared/api/review'
@@ -32,6 +32,8 @@ const router = useRouter()
 const route = useRoute()
 const dataset = useDatasetStore()
 const auth = useAuthStore()
+/** 编辑 / 删除 / 审核都是写操作，离线置灰（T6.1） */
+const network = useNetworkStore()
 
 /**
  * 审核预览 / 作者预览（T4.6 / T4.12）
@@ -230,8 +232,12 @@ async function onSaved(): Promise<void> {
 
       <!-- 待审期间不能改内容（服务端也会拒 PENDING_LOCKED），但允许删除 -->
       <div v-if="canManage && !isReview" class="detail__actions">
-        <el-button v-if="!isPending" @click="formVisible = true">编辑</el-button>
-        <el-button type="danger" plain @click="onDelete">删除</el-button>
+        <el-button v-if="!isPending" :disabled="network.offline" @click="formVisible = true">
+          编辑
+        </el-button>
+        <el-button type="danger" plain :disabled="network.offline" @click="onDelete"
+          >删除</el-button
+        >
       </div>
     </header>
 
@@ -269,8 +275,10 @@ async function onSaved(): Promise<void> {
       <div v-if="isReview" class="review-bar">
         <span class="review-bar__text">这条进阶还没通过审核，下面是完整预览（含大图）</span>
         <div class="review-bar__actions">
-          <el-button size="small" @click="rejectReview">驳回</el-button>
-          <el-button size="small" type="primary" @click="approveReview">通过</el-button>
+          <el-button size="small" :disabled="network.offline" @click="rejectReview">驳回</el-button>
+          <el-button size="small" type="primary" :disabled="network.offline" @click="approveReview">
+            通过
+          </el-button>
         </div>
       </div>
 

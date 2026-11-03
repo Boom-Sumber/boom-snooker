@@ -16,6 +16,7 @@
  * 以后统一重新生成类型时可以把 cast 去掉。
  */
 import { supabase } from './client'
+import { isNetworkError, NETWORK_ERROR_TEXT } from '../net/online'
 
 export type CommentTargetType = 'ball' | 'advanced'
 export type CommentStatus = 'pending' | 'visible' | 'rejected'
@@ -98,9 +99,7 @@ export function translateCommentError(message: string): string {
   if (raw.includes('NOT_PENDING')) return '这条评论已经被处理过了'
   if (raw.includes('BAD_DECISION')) return '审核结论不合法'
   if (raw.includes('FORBIDDEN')) return '没有权限审核这条评论'
-  if (raw.includes('Failed to fetch') || raw.includes('fetch failed')) {
-    return '连不上服务器，检查一下网络'
-  }
+  if (isNetworkError(raw)) return NETWORK_ERROR_TEXT
   return raw || '操作失败，请重试'
 }
 

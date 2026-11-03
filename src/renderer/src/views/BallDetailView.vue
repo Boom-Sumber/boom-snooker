@@ -22,7 +22,7 @@ import { ArrowLeftBold } from '@element-plus/icons-vue'
 import BallFormDialog from '@renderer/components/BallFormDialog.vue'
 import CommentSection from '@renderer/components/CommentSection.vue'
 import { BALL_LABELS } from '@renderer/navigation/menu'
-import { useAuthStore, useDatasetStore, type Ball } from '@renderer/stores'
+import { useAuthStore, useDatasetStore, useNetworkStore, type Ball } from '@renderer/stores'
 import { imageUrl } from '@shared/media/url'
 import { deleteBall } from '@shared/api/balls'
 import { getReviewBall, reviewRecord } from '@shared/api/review'
@@ -37,6 +37,8 @@ const router = useRouter()
 const route = useRoute()
 const dataset = useDatasetStore()
 const auth = useAuthStore()
+/** 编辑 / 删除 / 审核都是写操作，离线置灰（T6.1） */
+const network = useNetworkStore()
 
 /**
  * 审核预览 / 作者预览（T4.6 / T4.12）
@@ -262,8 +264,12 @@ async function onSaved(): Promise<void> {
 
       <!-- 待审期间不能改内容（服务端也会拒 PENDING_LOCKED），但允许删除 -->
       <div v-if="canManage && !isReview" class="detail__actions">
-        <el-button v-if="!isPending" @click="formVisible = true">编辑</el-button>
-        <el-button type="danger" plain @click="onDelete">删除</el-button>
+        <el-button v-if="!isPending" :disabled="network.offline" @click="formVisible = true">
+          编辑
+        </el-button>
+        <el-button type="danger" plain :disabled="network.offline" @click="onDelete"
+          >删除</el-button
+        >
       </div>
     </header>
 
@@ -301,8 +307,10 @@ async function onSaved(): Promise<void> {
       <div v-if="isReview" class="review-bar">
         <span class="review-bar__text">这条打法还没通过审核，下面是完整预览（含图片）</span>
         <div class="review-bar__actions">
-          <el-button size="small" @click="rejectReview">驳回</el-button>
-          <el-button size="small" type="primary" @click="approveReview">通过</el-button>
+          <el-button size="small" :disabled="network.offline" @click="rejectReview">驳回</el-button>
+          <el-button size="small" type="primary" :disabled="network.offline" @click="approveReview">
+            通过
+          </el-button>
         </div>
       </div>
       <!-- 标题行：左「力度 + 进袋方式」，右上「什么球 / 哪个袋」用胶囊标出来 -->

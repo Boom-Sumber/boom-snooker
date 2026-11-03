@@ -23,7 +23,7 @@ import { ElMessage } from 'element-plus'
 import AuthorTag from './AuthorTag.vue'
 import ReviewStamp from './ReviewStamp.vue'
 import { resolveAvatar } from '@renderer/assets/avatars'
-import { useAuthStore } from '@renderer/stores'
+import { useAuthStore, useNetworkStore } from '@renderer/stores'
 import {
   createComment,
   getCommentCounts,
@@ -41,6 +41,8 @@ const props = defineProps<{
 
 const router = useRouter()
 const auth = useAuthStore()
+/** 离线时禁用发送（T6.1）：评论必须联网写，草稿保留在输入框里 */
+const network = useNetworkStore()
 
 /** 一页 10 条：评论正文最长 300 字，10 条已经占满一屏多 */
 const PAGE_SIZE = 10
@@ -59,7 +61,7 @@ const submitting = ref(false)
 
 const hasMore = computed(() => items.value.length > 0 && items.value.length < total.value)
 const canSubmit = computed(
-  () => auth.isSignedIn && draft.value.trim().length > 0 && !submitting.value
+  () => auth.isSignedIn && !network.offline && draft.value.trim().length > 0 && !submitting.value
 )
 
 /** 自己还没过审 / 已被驳回的条数：标题旁各给一枚小胶囊，提醒"你的评论还没公开" */
@@ -246,7 +248,13 @@ watch(
         placeholder="说说你的看法…"
       />
       <div class="comments__actions">
-        <span class="comments__hint">提交后由管理员审核，通过后才公开显示</span>
+        <span class="comments__hint">
+          {{
+            network.offline
+              ? '离线状态下无法发表评论，恢复网络后可直接发送'
+              : '提交后由管理员审核，通过后才公开显示'
+          }}
+        </span>
         <el-button type="primary" :disabled="!canSubmit" :loading="submitting" @click="submit">
           发送
         </el-button>

@@ -11,7 +11,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { useDatasetStore } from '@renderer/stores'
+import { useDatasetStore, useNetworkStore } from '@renderer/stores'
 import {
   clearReadNotifications,
   deleteNotification,
@@ -42,6 +42,8 @@ const emit = defineEmits<{
 
 const router = useRouter()
 const dataset = useDatasetStore()
+/** 「全部已读 / 清空已读」是写操作，离线置灰（T6.1）；点单条仍可跳转，标已读失败不影响浏览 */
+const network = useNetworkStore()
 
 const items = ref<NotificationItem[]>([])
 const loading = ref(false)
@@ -210,10 +212,23 @@ watch(
     <div class="notify__bar">
       <span class="notify__hint">{{ unreadCount > 0 ? `${unreadCount} 条未读` : '没有未读' }}</span>
       <div class="notify__ops">
-        <el-button v-if="showClearRead" text type="primary" size="small" @click="clearRead">
+        <el-button
+          v-if="showClearRead"
+          text
+          type="primary"
+          size="small"
+          :disabled="network.offline"
+          @click="clearRead"
+        >
           清空已读
         </el-button>
-        <el-button text type="primary" size="small" :disabled="unreadCount === 0" @click="markAll">
+        <el-button
+          text
+          type="primary"
+          size="small"
+          :disabled="unreadCount === 0 || network.offline"
+          @click="markAll"
+        >
           全部已读
         </el-button>
       </div>

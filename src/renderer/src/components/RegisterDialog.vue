@@ -15,7 +15,7 @@ import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { Check, Close, Loading } from '@element-plus/icons-vue'
 import CaptchaCode from '@renderer/components/CaptchaCode.vue'
 import { GENDER_LABELS, type Gender } from '@renderer/assets/avatars'
-import { useAuthStore } from '@renderer/stores'
+import { useAuthStore, useNetworkStore } from '@renderer/stores'
 import { explainSignUpFailure, INVITE_REASON_TEXT, validateInviteCode } from '@shared/api/invite'
 
 const props = defineProps<{ visible: boolean }>()
@@ -26,6 +26,8 @@ const emit = defineEmits<{
 }>()
 
 const auth = useAuthStore()
+/** 注册要走 GoTrue + 邀请码预检，离线禁用（T6.1） */
+const network = useNetworkStore()
 const formRef = ref<FormInstance>()
 const captchaRef = ref<InstanceType<typeof CaptchaCode>>()
 const loading = ref(false)
@@ -290,7 +292,9 @@ async function submit(): Promise<void> {
 
     <template #footer>
       <el-button :disabled="loading" @click="close">取消</el-button>
-      <el-button type="primary" :loading="loading" @click="submit">注册</el-button>
+      <el-button type="primary" :loading="loading" :disabled="network.offline" @click="submit">
+        注册
+      </el-button>
     </template>
   </el-dialog>
 </template>

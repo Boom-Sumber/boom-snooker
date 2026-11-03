@@ -21,6 +21,7 @@ import {
 } from '@shared/sync/snapshot'
 import type { Tables } from '@shared/types/db'
 import type { SiteSection } from '@shared/types/content'
+import { useNetworkStore } from './network'
 
 /**
  * 快照行 + `author_deleted`（D30）
@@ -131,6 +132,8 @@ export const useDatasetStore = defineStore('dataset', () => {
       })
       syncState.value = result.status
       if (result.message) lastError.value = result.message
+      // 同步结果是网络层唯一的"服务端到底通不通"的证据（T6.1）
+      useNetworkStore().reportSyncResult(result.status)
 
       // 两种情况都要把缓存读进 store：
       //   ① updated —— 缓存刚被原子替换，内存里还是旧对象

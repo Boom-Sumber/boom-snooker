@@ -13,7 +13,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ROLE_LABELS } from '@renderer/navigation/menu'
-import { useAuthStore } from '@renderer/stores'
+import { useAuthStore, useNetworkStore } from '@renderer/stores'
 import {
   inviteCodeOf,
   listUsers,
@@ -28,6 +28,8 @@ import {
 } from '@shared/api/admin'
 
 const auth = useAuthStore()
+/** 改角色 / 停用 / 恢复 / 重置邀请码都是写操作，离线全禁用（T6.1） */
+const network = useNetworkStore()
 
 const users = ref<AdminUser[]>([])
 const loading = ref(false)
@@ -323,7 +325,9 @@ onMounted(() => {
         </div>
         <div class="code__actions">
           <el-button :disabled="!myCode" @click="copyCode(myCode)">复制</el-button>
-          <el-button :loading="codeBusy" @click="onResetMyCode">重置</el-button>
+          <el-button :loading="codeBusy" :disabled="network.offline" @click="onResetMyCode">
+            重置
+          </el-button>
         </div>
       </div>
 
@@ -361,6 +365,7 @@ onMounted(() => {
                 :model-value="row.role"
                 size="small"
                 class="cell__role"
+                :disabled="network.offline"
                 @change="(value: AdminRole) => onRoleChange(row, value)"
               >
                 <el-option
@@ -414,6 +419,7 @@ onMounted(() => {
                 v-if="canManage(row) && !row.deleted_at"
                 link
                 type="danger"
+                :disabled="network.offline"
                 @click="openDelete(row)"
               >
                 停用
@@ -422,6 +428,7 @@ onMounted(() => {
                 v-else-if="canManage(row) && row.deleted_at"
                 link
                 type="primary"
+                :disabled="network.offline"
                 @click="openRestore(row)"
               >
                 恢复
@@ -486,7 +493,14 @@ onMounted(() => {
 
       <template #footer>
         <el-button :disabled="deleteBusy" @click="deleteVisible = false">取消</el-button>
-        <el-button type="danger" :loading="deleteBusy" @click="confirmDelete">确认停用</el-button>
+        <el-button
+          type="danger"
+          :loading="deleteBusy"
+          :disabled="network.offline"
+          @click="confirmDelete"
+        >
+          确认停用
+        </el-button>
       </template>
     </el-dialog>
 
@@ -508,9 +522,14 @@ onMounted(() => {
 
       <template #footer>
         <el-button :disabled="restoreBusy" @click="restoreVisible = false">取消</el-button>
-        <el-button type="primary" :loading="restoreBusy" @click="confirmRestore"
-          >确认恢复</el-button
+        <el-button
+          type="primary"
+          :loading="restoreBusy"
+          :disabled="network.offline"
+          @click="confirmRestore"
         >
+          确认恢复
+        </el-button>
       </template>
     </el-dialog>
 
@@ -522,7 +541,9 @@ onMounted(() => {
       <p class="code__value code__value--dialog">{{ otherCode || '加载中…' }}</p>
       <template #footer>
         <el-button :disabled="!otherCode" @click="copyCode(otherCode)">复制</el-button>
-        <el-button type="warning" @click="onResetOtherCode">重置</el-button>
+        <el-button type="warning" :disabled="network.offline" @click="onResetOtherCode">
+          重置
+        </el-button>
         <el-button @click="otherCodeVisible = false">关闭</el-button>
       </template>
     </el-dialog>

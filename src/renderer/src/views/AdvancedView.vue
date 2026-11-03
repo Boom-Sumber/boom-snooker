@@ -14,7 +14,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import AdvancedCard from '@renderer/components/AdvancedCard.vue'
 import AdvancedFormDialog from '@renderer/components/AdvancedFormDialog.vue'
 import { CATEGORY_LABELS } from '@renderer/navigation/menu'
-import { useAuthStore, useDatasetStore, type Advanced } from '@renderer/stores'
+import { useAuthStore, useDatasetStore, useNetworkStore, type Advanced } from '@renderer/stores'
 import { deleteAdvanced } from '@shared/api/advanced'
 
 const props = defineProps<{ category: string }>()
@@ -22,6 +22,8 @@ const props = defineProps<{ category: string }>()
 const router = useRouter()
 const dataset = useDatasetStore()
 const auth = useAuthStore()
+/** 新增 / 编辑 / 删除都要联网，离线时入口置灰（T6.1） */
+const network = useNetworkStore()
 
 const title = computed(
   () => CATEGORY_LABELS[props.category] ?? dataset.dictName('category', props.category)
@@ -116,7 +118,9 @@ watch(
         <h1 class="advanced-view__title">{{ title }}</h1>
         <p class="advanced-view__sub">共 {{ items.length }} 条 · 点卡片查看完整内容</p>
       </div>
-      <el-button v-if="auth.canWrite" type="primary" @click="onCreate">新增</el-button>
+      <el-button v-if="auth.canWrite" type="primary" :disabled="network.offline" @click="onCreate">
+        新增
+      </el-button>
     </header>
 
     <!-- 系列切换：与侧栏 5 项同一个路由参数，两边始终同步 -->
@@ -144,7 +148,9 @@ watch(
             trigger="click"
             @command="(command: string) => (command === 'edit' ? onEdit(item) : onDelete(item))"
           >
-            <el-button size="small" text title="更多操作">···</el-button>
+            <el-button size="small" text title="更多操作" :disabled="network.offline"
+              >···</el-button
+            >
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item command="edit">编辑</el-dropdown-item>

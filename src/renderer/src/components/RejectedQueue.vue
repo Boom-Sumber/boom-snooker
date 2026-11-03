@@ -17,7 +17,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import LazyImage from './LazyImage.vue'
 import AuthorTag from './AuthorTag.vue'
 import { BALL_LABELS, CATEGORY_LABELS } from '@renderer/navigation/menu'
-import { useAuthStore, useDatasetStore } from '@renderer/stores'
+import { useAuthStore, useDatasetStore, useNetworkStore } from '@renderer/stores'
 import { imageUrl } from '@shared/media/url'
 import { purgeRecord } from '@shared/api/recycle'
 import { listRejectedRecords, remindRejected, type RejectedRecord } from '@shared/api/review'
@@ -31,6 +31,8 @@ const emit = defineEmits<{ (event: 'changed'): void }>()
 
 const auth = useAuthStore()
 const dataset = useDatasetStore()
+/** 离线时「提醒 / 永久删除」都不可用（T6.1） */
+const network = useNetworkStore()
 
 /** 超过这个小时数就视觉催办 */
 const STALE_HOURS = 72
@@ -211,7 +213,7 @@ watch(
         <footer class="pending__actions">
           <el-button
             size="small"
-            :disabled="actingId === item.id"
+            :disabled="actingId === item.id || network.offline"
             :loading="actingId === item.id"
             @click="onRemind(item)"
           >
@@ -223,7 +225,7 @@ watch(
             size="small"
             type="danger"
             plain
-            :disabled="actingId === item.id"
+            :disabled="actingId === item.id || network.offline"
             :loading="actingId === item.id"
             @click="onPurge(item)"
           >

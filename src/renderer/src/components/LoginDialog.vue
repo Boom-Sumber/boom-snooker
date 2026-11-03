@@ -10,7 +10,7 @@
 import { reactive, ref, watch } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import RegisterDialog from '@renderer/components/RegisterDialog.vue'
-import { useAuthStore } from '@renderer/stores'
+import { useAuthStore, useNetworkStore } from '@renderer/stores'
 
 const props = defineProps<{ visible: boolean }>()
 
@@ -20,6 +20,8 @@ const emit = defineEmits<{
 }>()
 
 const auth = useAuthStore()
+/** 登录要走 GoTrue，离线禁用（T6.1）；断网时点登录只会白等一圈 */
+const network = useNetworkStore()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
 
@@ -110,7 +112,9 @@ async function submit(): Promise<void> {
         </el-button>
         <div class="footer__actions">
           <el-button :disabled="loading" @click="close">取消</el-button>
-          <el-button type="primary" :loading="loading" @click="submit">登录</el-button>
+          <el-button type="primary" :loading="loading" :disabled="network.offline" @click="submit">
+            登录
+          </el-button>
         </div>
       </div>
     </template>

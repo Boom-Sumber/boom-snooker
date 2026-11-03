@@ -11,6 +11,7 @@
  * 所以审核成功后调用方要主动 `dataset.sync(true)`，否则列表页看不到这条新记录。
  */
 import { supabase } from './client'
+import { isNetworkError, NETWORK_ERROR_TEXT } from '../net/online'
 import type { Tables } from '../types/db'
 
 export type ReviewDecision = 'visible' | 'rejected'
@@ -57,9 +58,7 @@ export function translateReviewError(message: string): string {
   if (raw.includes('BAD_TYPE')) return '记录类型不合法'
   if (raw.includes('FORBIDDEN')) return '没有权限审核这条记录'
   if (raw.includes('AUTH_REQUIRED')) return '请先登录'
-  if (raw.includes('Failed to fetch') || raw.includes('fetch failed')) {
-    return '连不上服务器，检查一下网络'
-  }
+  if (isNetworkError(raw)) return NETWORK_ERROR_TEXT
   return raw || '操作失败，请重试'
 }
 

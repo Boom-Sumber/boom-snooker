@@ -14,8 +14,9 @@ import { ElMessage, type FormInstance, type FormRules, type UploadFile } from 'e
 import { upsertAdvanced } from '@shared/api/advanced'
 import { imageUrl } from '@shared/media/url'
 import { previewUrl, removeUploadedImages, uploadImage } from '@shared/media/upload'
+import { OFFLINE_WRITE_HINT } from '@shared/net/online'
 import { CATEGORY_LABELS } from '@renderer/navigation/menu'
-import { useAuthStore, useDatasetStore, type Advanced } from '@renderer/stores'
+import { useAuthStore, useDatasetStore, useNetworkStore, type Advanced } from '@renderer/stores'
 
 const props = defineProps<{
   visible: boolean
@@ -32,6 +33,8 @@ const emit = defineEmits<{
 
 const auth = useAuthStore()
 const dataset = useDatasetStore()
+/** 离线时不允许保存（T6.1）：上传图片与写 RPC 都必须联网 */
+const network = useNetworkStore()
 const formRef = ref<FormInstance>()
 const saving = ref(false)
 
@@ -149,6 +152,11 @@ function close(): void {
 
 async function save(): Promise<void> {
   if (!formRef.value) return
+  // 按钮已经 disabled，这里再挡一次：回车提交同样会走到这
+  if (network.offline) {
+    ElMessage.warning(OFFLINE_WRITE_HINT)
+    return
+  }
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
 
@@ -280,8 +288,13 @@ async function save(): Promise<void> {
     </el-form>
 
     <template #footer>
-      <el-button :disabled="saving" @click="close">取消</el-button>
-      <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+      <div class="dialog-footer">
+        <span v-if="network.offline" class="offline-write-hint">{{ OFFLINE_WRITE_HINT }}</span>
+        <el-button :disabled="saving" @click="close">取消</el-button>
+        <el-button type="primary" :disabled="network.offline" :loading="saving" @click="save">
+          保存
+        </el-button>
+      </div>
     </template>
   </el-dialog>
 </template>

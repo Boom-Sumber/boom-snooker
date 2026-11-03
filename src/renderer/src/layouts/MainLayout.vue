@@ -2,6 +2,7 @@
 import { storeToRefs } from 'pinia'
 import SideBar from '@renderer/components/layout/SideBar.vue'
 import TopBar from '@renderer/components/layout/TopBar.vue'
+import OfflineBar from '@renderer/components/layout/OfflineBar.vue'
 import { useUiStore } from '@renderer/stores'
 
 /** 侧栏折叠：状态放 ui store，SideBar / TopBar / 本组件三处都要读写 */
@@ -15,6 +16,9 @@ const { sidebarCollapsed: collapsed } = storeToRefs(ui)
 
     <div class="main-layout__main">
       <TopBar :collapsed="collapsed" @toggle-sidebar="ui.toggleSidebar()" />
+
+      <!-- 离线提示条（T6.1）：夹在顶栏与内容之间，不遮内容 -->
+      <OfflineBar />
 
       <main class="main-layout__content card">
         <RouterView v-slot="{ Component }">

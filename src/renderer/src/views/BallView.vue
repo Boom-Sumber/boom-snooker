@@ -15,7 +15,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import BallCard from '@renderer/components/BallCard.vue'
 import BallFormDialog from '@renderer/components/BallFormDialog.vue'
 import { BALL_LABELS } from '@renderer/navigation/menu'
-import { useAuthStore, useDatasetStore, type Ball } from '@renderer/stores'
+import { useAuthStore, useDatasetStore, useNetworkStore, type Ball } from '@renderer/stores'
 import { deleteBall } from '@shared/api/balls'
 
 const props = defineProps<{ color: string }>()
@@ -24,6 +24,8 @@ const route = useRoute()
 const router = useRouter()
 const dataset = useDatasetStore()
 const auth = useAuthStore()
+/** 新增 / 编辑 / 删除都要联网，离线时入口置灰（T6.1） */
+const network = useNetworkStore()
 
 /** 字典还没同步下来时的兜底（顺序与旧版 6 个 radio 一致） */
 const POCKET_FALLBACK = [
@@ -205,7 +207,9 @@ async function onSaved(): Promise<void> {
         <h1 class="ball-view__title">{{ title }}</h1>
         <p class="ball-view__sub">共 {{ colorBalls.length }} 条打法 · 按袋口与进袋方式筛选</p>
       </div>
-      <el-button v-if="auth.canWrite" type="primary" @click="onCreate">新增</el-button>
+      <el-button v-if="auth.canWrite" type="primary" :disabled="network.offline" @click="onCreate">
+        新增
+      </el-button>
     </header>
 
     <!-- 筛选区 -->
@@ -261,7 +265,9 @@ async function onSaved(): Promise<void> {
             trigger="click"
             @command="(command: string) => (command === 'edit' ? onEdit(ball) : onDelete(ball))"
           >
-            <el-button size="small" text title="更多操作">···</el-button>
+            <el-button size="small" text title="更多操作" :disabled="network.offline"
+              >···</el-button
+            >
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item command="edit">编辑</el-dropdown-item>

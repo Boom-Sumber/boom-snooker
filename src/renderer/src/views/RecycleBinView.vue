@@ -17,7 +17,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { BALL_LABELS, CATEGORY_LABELS } from '@renderer/navigation/menu'
-import { useAuthStore, useDatasetStore } from '@renderer/stores'
+import { useAuthStore, useDatasetStore, useNetworkStore } from '@renderer/stores'
 import { imageUrl } from '@shared/media/url'
 import LazyImage from '@renderer/components/LazyImage.vue'
 import {
@@ -33,6 +33,8 @@ import {
 
 const auth = useAuthStore()
 const dataset = useDatasetStore()
+/** 恢复 / 永久删除 / 清孤儿图都是写操作，离线全禁用（T6.1） */
+const network = useNetworkStore()
 
 const PAGE_SIZE = 20
 
@@ -313,7 +315,7 @@ watch(
           <div class="row__actions">
             <el-button
               :loading="acting === item.id"
-              :disabled="acting !== null"
+              :disabled="acting !== null || network.offline"
               @click="onRestore(item)"
             >
               恢复
@@ -322,7 +324,7 @@ watch(
               type="danger"
               plain
               :loading="acting === item.id"
-              :disabled="acting !== null"
+              :disabled="acting !== null || network.offline"
               @click="onPurge(item)"
             >
               永久删除
@@ -357,7 +359,7 @@ watch(
             <el-button
               type="danger"
               plain
-              :disabled="orphanSelected.length === 0"
+              :disabled="orphanSelected.length === 0 || network.offline"
               :loading="orphanPurging"
               @click="onPurgeOrphans"
             >

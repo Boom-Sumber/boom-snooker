@@ -12,12 +12,14 @@
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { useAuthStore, useDatasetStore } from '@renderer/stores'
+import { useAuthStore, useDatasetStore, useNetworkStore } from '@renderer/stores'
 import { deleteSiteSection, saveSiteSection } from '@shared/api/content'
 import type { SiteSectionDraft } from '@shared/types/content'
 
 const auth = useAuthStore()
 const dataset = useDatasetStore()
+/** 离线时只允许改草稿、不允许保存（T6.1） */
+const network = useNetworkStore()
 
 const drafts = ref<SiteSectionDraft[]>([])
 const dirty = ref(false)
@@ -181,7 +183,12 @@ onMounted(() => {
       <div class="head__actions">
         <el-button :disabled="!canEdit" @click="addSection">新建分组</el-button>
         <el-button :disabled="!dirty" @click="reset">放弃修改</el-button>
-        <el-button type="primary" :disabled="!canEdit || !dirty" :loading="saving" @click="saveAll">
+        <el-button
+          type="primary"
+          :disabled="!canEdit || !dirty || network.offline"
+          :loading="saving"
+          @click="saveAll"
+        >
           保存全部
         </el-button>
       </div>

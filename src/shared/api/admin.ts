@@ -10,6 +10,7 @@
  * 以后统一重新生成类型时，这个文件里的 cast 可以删掉。
  */
 import { supabase } from './client'
+import { isNetworkError, NETWORK_ERROR_TEXT } from '../net/online'
 
 export type AdminRole = 'viewer' | 'advanced' | 'admin' | 'superadmin'
 
@@ -63,9 +64,7 @@ export function translateAdminError(message: string): string {
   if (raw.includes('BAD_ROLE')) return '角色不合法'
   if (raw.includes('SAME_TARGET')) return '源和目标不能是同一个账户'
   if (raw.includes('AUTH_REQUIRED')) return '请先登录'
-  if (raw.includes('Failed to fetch') || raw.includes('fetch failed')) {
-    return '连不上服务器，检查一下网络'
-  }
+  if (isNetworkError(raw)) return NETWORK_ERROR_TEXT
   return raw || '操作失败，请重试'
 }
 
