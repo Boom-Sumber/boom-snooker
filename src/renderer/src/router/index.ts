@@ -108,6 +108,13 @@ export const router = createRouter({
           meta: { title: '账号' }
         },
         {
+          // 审核中心（T8.4）：待审评论 / 待审记录 / 已驳回 + 最近处理
+          path: 'review',
+          name: 'review',
+          component: () => import('@renderer/views/ReviewCenterView.vue'),
+          meta: { title: '审核中心', roles: ['admin', 'superadmin'] }
+        },
+        {
           // 账户管理（D28）：菜单只对 admin / superadmin 显示，
           // meta.roles 才是"进不去"的那道门
           path: 'users',

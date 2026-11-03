@@ -51,6 +51,7 @@ const rpc = supabase.rpc.bind(supabase) as unknown as RpcCall
 
 export function translateReviewError(message: string): string {
   const raw = message ?? ''
+  if (raw.includes('REMIND_TOO_SOON')) return '24 小时内已经提醒过作者了'
   if (raw.includes('NOT_PENDING')) return '这条记录已经被处理过了'
   if (raw.includes('BAD_DECISION')) return '审核结论不合法'
   if (raw.includes('BAD_TYPE')) return '记录类型不合法'
@@ -134,4 +135,84 @@ export async function reviewRecord(
   })
   if (error) return { ok: false, message: translateReviewError(error.message ?? '') }
   return { ok: true, data: null }
+}
+
+/* ────────────────── 已驳回队列 / 最近处理（T8.3 / T8.4） ────────────────── */
+
+/** `list_rejected_records` 的一行 */
+export interface RejectedRecord {
+  rec_type: 'ball' | 'advanced'
+  id: string
+  /** 彩球是 method，进阶是 title */
+  title: string
+  owner_id: string | null
+  owner_nickname: string | null
+  owner_deleted: boolean
+  color_code: string | null
+  pocket_code: string | null
+  category_code: string | null
+  review_note: string | null
+  reviewed_at: string | null
+  reviewer_nickname: string | null
+  reviewer_role: string | null
+  image_paths: string[]
+  total_count: number
+}
+
+/**
+ * 已驳回队列（`state=1 and review_status='rejected'`）
+ *
+ * 范围由服务端按 `can_review_owner` 决定：管理员看自己邀请的人，超管看全量。
+ * 这类记录作者随时可能改稿重提，所以**只能提醒或由超管物理删除**。
+ */
+export async function listRejectedRecords(
+  options: { type?: 'ball' | 'advanced' | null; limit?: number; offset?: number } = {}
+): Promise<ReviewResult<{ items: RejectedRecord[]; total: number }>> {
+  const { data, error } = await rpc('list_rejected_records', {
+    p_type: options.type ?? null,
+    p_limit: options.limit ?? 50,
+    p_offset: options.offset ?? 0
+  })
+  if (error) return { ok: false, message: translateReviewError(error.message ?? '') }
+
+  const items = (Array.isArray(data) ? data : []) as RejectedRecord[]
+  return {
+    ok: true,
+    data: { items, total: Number(items[0]?.total_count ?? 0) }
+  }
+}
+
+/** 再次提醒作者（同一条 24h 内只能一次，服务端抛 REMIND_TOO_SOON） */
+export async function remindRejected(
+  type: 'ball' | 'advanced',
+  id: string
+): Promise<ReviewResult<null>> {
+  const { error } = await rpc('remind_rejected', { p_type: type, p_id: id })
+  if (error) return { ok: false, message: translateReviewError(error.message ?? '') }
+  return { ok: true, data: null }
+}
+
+/** `list_recent_reviews` 的一行 */
+export interface RecentReview {
+  rec_type: 'ball' | 'advanced'
+  id: string
+  title: string
+  owner_nickname: string | null
+  reviewer_nickname: string | null
+  reviewer_role: string | null
+  decision: 'visible' | 'rejected'
+  review_note: string | null
+  reviewed_at: string
+}
+
+/**
+ * 最近处理（审核中心底部）
+ *
+ * 超管代审了某个管理员范围内的记录时，该管理员能在这里看到
+ * 「由 超管 xxx 审核」，避免重复处理。
+ */
+export async function listRecentReviews(limit = 20): Promise<ReviewResult<RecentReview[]>> {
+  const { data, error } = await rpc('list_recent_reviews', { p_limit: limit })
+  if (error) return { ok: false, message: translateReviewError(error.message ?? '') }
+  return { ok: true, data: (Array.isArray(data) ? data : []) as RecentReview[] }
 }

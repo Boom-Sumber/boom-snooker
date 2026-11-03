@@ -98,6 +98,8 @@ export const navGroups: NavGroup[] = [
       { label: '小键盘设置', path: '/keyboard' },
       { label: '系统设置', path: '/settings' },
       // 账户管理：只有管理员和超管看得见（D28）
+      // 审核中心（T8.4）：待审评论 / 待审记录 / 已驳回
+      { label: '审核中心', path: '/review', roles: ['admin', 'superadmin'] },
       { label: '账户管理', path: '/users', roles: ['admin', 'superadmin'] },
       // 文案管理：只有超管（D31）
       { label: '文案管理', path: '/content', roles: ['superadmin'] },

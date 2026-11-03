@@ -26,6 +26,11 @@ const props = defineProps<{
   recordCount?: number
   /** 对话框每次打开时 +1，用来强制重拉 */
   refreshToken?: number
+  /**
+   * 只显示某一种队列（审核中心页面用）：
+   * 传了就隐藏内部的页签栏，只渲染对应列表；不传保持原来的「评论 / 记录」双页签（通知弹窗用）
+   */
+  only?: 'comment' | 'record'
 }>()
 
 const emit = defineEmits<{
@@ -38,7 +43,7 @@ const emit = defineEmits<{
 const router = useRouter()
 const dataset = useDatasetStore()
 
-const tab = ref<'comment' | 'record'>('comment')
+const tab = ref<'comment' | 'record'>(props.only ?? 'comment')
 
 const comments = ref<PendingComment[]>([])
 const records = ref<PendingRecord[]>([])
@@ -271,7 +276,7 @@ watch(
 </script>
 
 <template>
-  <el-tabs v-model="tab">
+  <el-tabs v-model="tab" :class="{ 'review--bare': !!only }">
     <!-- ── 评论 ── -->
     <el-tab-pane :label="commentLabel" name="comment">
       <p v-if="errorComments" class="review__error">
@@ -374,6 +379,11 @@ watch(
 </template>
 
 <style scoped>
+/* 审核中心页面里由外层页签控制类型，这里不需要再显示一层页签 */
+.review--bare :deep(.el-tabs__header) {
+  display: none;
+}
+
 .review__error {
   display: flex;
   gap: 0.5rem;
