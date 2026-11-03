@@ -2,10 +2,14 @@ import { app, BrowserWindow } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { registerAppInfoIpc } from './appInfo'
 import { registerAuthIpc } from './auth'
+import { initLogging, registerLogIpc } from './log'
 import { registerMediaProtocol } from './media'
 import { registerStoreIpc } from './store'
 import { initTheme } from './theme'
 import { createMainWindow, registerWindowIpc } from './window'
+
+// 日志最先起来：启动阶段（建窗口之前）出问题也要留证据
+initLogging()
 
 // 单实例：第二次启动不再开新窗口，直接把已有窗口叫到前面
 const gotSingleInstanceLock = app.requestSingleInstanceLock()
@@ -34,6 +38,7 @@ if (!gotSingleInstanceLock) {
     registerAuthIpc()
     registerAppInfoIpc()
     registerStoreIpc()
+    registerLogIpc()
 
     // 开发期 F12 开关 DevTools，生产期忽略 Ctrl+R
     app.on('browser-window-created', (_, window) => {

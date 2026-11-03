@@ -22,6 +22,8 @@ const { balls, advanced, version, lastSyncAt, syncing, progress, syncState } = s
 
 const appInfo = ref<AppInfo | null>(null)
 const syncingNow = ref(false)
+/** 日志文件路径（T6.2）：排查问题时让用户直接打开/复制，不用教他去找 %APPDATA% */
+const logPath = ref('')
 
 const THEME_OPTIONS: { value: ThemeMode; label: string; hint: string }[] = [
   { value: 'light', label: '亮色', hint: '白天用' },
@@ -78,7 +80,32 @@ onMounted(async () => {
   } catch {
     appInfo.value = null
   }
+
+  try {
+    logPath.value = await window.api.log.path()
+  } catch {
+    logPath.value = ''
+  }
 })
+
+/** 在资源管理器里定位日志文件（不存在时打开所在目录） */
+async function onOpenLog(): Promise<void> {
+  try {
+    await window.api.log.open()
+  } catch {
+    ElMessage.error('打不开日志目录')
+  }
+}
+
+async function onCopyLogPath(): Promise<void> {
+  if (!logPath.value) return
+  try {
+    await navigator.clipboard.writeText(logPath.value)
+    ElMessage.success('路径已复制')
+  } catch {
+    ElMessage.error('复制失败，手动选中吧')
+  }
+}
 </script>
 
 <template>
@@ -150,6 +177,17 @@ onMounted(async () => {
           <dd>{{ appInfo?.node ?? '—' }}</dd>
         </div>
       </dl>
+
+      <!-- 日志（T6.2）：出问题时唯一需要看的东西 -->
+      <p class="log-line">
+        <span class="log-line__label">日志文件</span>
+        <span class="log-line__path" :title="logPath">{{ logPath || '还没有生成' }}</span>
+      </p>
+      <div class="block__actions">
+        <el-button size="small" :disabled="!logPath" @click="onOpenLog">打开日志文件夹</el-button>
+        <el-button size="small" :disabled="!logPath" @click="onCopyLogPath">复制路径</el-button>
+        <span class="block__state">程序出错时，把 main.log 发过来就能定位</span>
+      </div>
 
       <p class="about">
         作者：酸菜黄花鱼 · 联系方式 QQ 78260590<br />
@@ -227,6 +265,31 @@ onMounted(async () => {
 .block__state {
   font-size: var(--font-size-sm);
   color: var(--text-2);
+}
+
+/* 日志路径可能很长：单行省略，完整路径放 title，需要时点「复制路径」 */
+.log-line {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  margin: 1rem 0 0;
+  font-size: var(--font-size-sm);
+  min-width: 0;
+}
+
+.log-line__label {
+  flex: 0 0 auto;
+  color: var(--text-3);
+}
+
+.log-line__path {
+  overflow: hidden;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* 复制失败时提示"手动选中"，所以这里必须真的能选中 */
+  user-select: text;
 }
 
 .about {

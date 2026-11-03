@@ -11,6 +11,7 @@ import ElementPlus from 'element-plus'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import App from './App.vue'
 import { router } from './router'
+import { installErrorHandlers } from './services/error-handler'
 import { bootstrapStores } from './stores'
 import { initTheme } from './theme'
 
@@ -21,6 +22,8 @@ initTheme()
 // 原因见那里的注释）
 
 const app = createApp(App)
+// 异常兜底要早于挂载：首屏渲染就出错的话，晚一步就什么都记不到了
+installErrorHandlers(app)
 app.use(createPinia()).use(ElementPlus, { locale: zhCn }).use(router).mount('#app')
 
 // 挂载之后再拉数据 / 恢复会话：首屏用本地缓存先渲染，网络慢不阻塞界面。

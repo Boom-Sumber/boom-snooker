@@ -21,6 +21,7 @@ import {
 } from '@shared/sync/snapshot'
 import type { Tables } from '@shared/types/db'
 import type { SiteSection } from '@shared/types/content'
+import { logger } from '@renderer/services/logger'
 import { useNetworkStore } from './network'
 
 /**
@@ -134,6 +135,10 @@ export const useDatasetStore = defineStore('dataset', () => {
       if (result.message) lastError.value = result.message
       // 同步结果是网络层唯一的"服务端到底通不通"的证据（T6.1）
       useNetworkStore().reportSyncResult(result.status)
+      // 只有真出错才记日志：offline 是常态（断网浏览），不该刷日志（T6.2）
+      if (result.status === 'error') {
+        logger.warn('dataset', '快照同步失败', result.message ?? '')
+      }
 
       // 两种情况都要把缓存读进 store：
       //   ① updated —— 缓存刚被原子替换，内存里还是旧对象

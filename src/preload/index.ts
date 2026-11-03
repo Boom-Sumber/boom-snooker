@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type { AppInfoApi } from '@shared/types/app'
 import type { AuthVaultApi } from '@shared/types/auth'
+import type { LogApi, LogLevel } from '@shared/types/log'
 import type { CacheFileInfo, LocalStoreApi } from '@shared/types/storage'
 import type { ThemeApi, ThemeMode, ThemeState } from '@shared/types/theme'
 import type { WindowControls } from '@shared/types/window'
@@ -13,9 +14,17 @@ const api: {
   auth: AuthVaultApi
   store: LocalStoreApi
   app: AppInfoApi
+  log: LogApi
 } = {
   app: {
     info: () => ipcRenderer.invoke('app:info')
+  },
+  log: {
+    // 用 send 不用 invoke：日志是"记一笔就走"，不该让业务等回执
+    write: (level: LogLevel, scope: string, message: string, detail?: string): void =>
+      ipcRenderer.send('log:write', level, scope, message, detail),
+    path: (): Promise<string> => ipcRenderer.invoke('log:path'),
+    open: (): Promise<void> => ipcRenderer.invoke('log:open')
   },
   theme: {
     get: (): Promise<ThemeState> => ipcRenderer.invoke('theme:get'),
