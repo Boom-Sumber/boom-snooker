@@ -86,7 +86,12 @@ async function gh(path, init = {}) {
   } catch {
     body = text
   }
-  if (!res.ok) fail(`GitHub ${init.method || 'GET'} ${path} → ${res.status}\n${text.slice(0, 500)}`)
+  if (!res.ok) {
+    // 不能在这里 fail()：调用方要靠 404 判断"release 还没建"，直接退出会把流程杀掉
+    const err = new Error(`GitHub ${init.method || 'GET'} ${path} → ${res.status}\n${text.slice(0, 500)}`)
+    err.status = res.status
+    throw err
+  }
   return body
 }
 
@@ -207,7 +212,8 @@ async function main() {
     try {
       release = await gh(`/repos/${GH_REPO}/releases/tags/${tag}`)
       console.log(`  release 已存在（id=${release.id}），复用`)
-    } catch {
+    } catch (err) {
+      if (err.status !== 404) throw err
       release = await gh(`/repos/${GH_REPO}/releases`, {
         method: 'POST',
         body: JSON.stringify({
@@ -290,4 +296,4 @@ async function main() {
   console.log(`\n✓ 发布完成：${tag}\n  安装包 ${installerUrl}\n  清单   ${publicManifest}\n`)
 }
 
-main().catch((err) => fail(err?.stack || String(err)))
+main().catch((err) => fail(err?.status ? err.message : err?.stack || String(err)))
