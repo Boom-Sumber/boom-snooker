@@ -9,12 +9,13 @@
  *
  * 版本号从主进程 `app:info` 拿，不写死：写死的话每次发版都要改代码。
  */
-import { onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { storeToRefs } from 'pinia'
 import { useDatasetStore, useThemeStore } from '@renderer/stores'
 import type { AppInfo } from '@shared/types/app'
 import type { AutoStartState, CloseAction } from '@shared/types/system'
+import type { MediaCacheStats, PrefetchProgress } from '@shared/types/media'
 import type { ThemeMode } from '@shared/types/theme'
 
 const theme = useThemeStore()
@@ -33,6 +34,55 @@ const prefsReady = ref(false)
 /** 开机自启（T10.2）：状态以系统返回为准；dev 下不支持，开关置灰 */
 const autoStart = ref(false)
 const autoStartSupported = ref(false)
+
+/* ── 资源缓存（T10.3） ── */
+
+const cacheStats = ref<MediaCacheStats>({ files: 0, bytes: 0 })
+const prefetchVisible = ref(false)
+const prefetching = ref(false)
+const prefetchDone = ref(false)
+const prefetchProgress = ref<PrefetchProgress>({
+  total: 0,
+  done: 0,
+  downloaded: 0,
+  skipped: 0,
+  failed: 0
+})
+
+/** 快照里所有唯一的图片路径（三张球图 + 进阶一张图），去重后交给主进程 */
+const uniqueImagePaths = computed<string[]>(() => {
+  const set = new Set<string>()
+  for (const ball of balls.value) {
+    for (const path of [ball.impact_image, ball.blue_image, ball.route_image]) {
+      if (path) set.add(path)
+    }
+  }
+  for (const item of advanced.value) {
+    if (item.image) set.add(item.image)
+  }
+  return [...set]
+})
+
+const prefetchPercent = computed(() => {
+  const { total, done } = prefetchProgress.value
+  if (total === 0) return 0
+  return Math.min(100, Math.round((done / total) * 100))
+})
+
+function sizeText(bytes: number): string {
+  if (!bytes) return '0 B'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+async function refreshCacheStats(): Promise<void> {
+  try {
+    cacheStats.value = await window.api.media.stats()
+  } catch {
+    // 拿不到就保持旧值，不影响别的设置
+  }
+}
 
 const CLOSE_OPTIONS: { value: CloseAction; label: string }[] = [
   { value: 'tray', label: '最小化到托盘' },
@@ -122,6 +172,77 @@ async function onCloseActionChange(value: CloseAction): Promise<void> {
   }
 }
 
+/** 全量缓存（T10.3）：开弹框 → 让主进程按 5 并发下载 → 进度靠 IPC 推回来 */
+async function onPrefetch(): Promise<void> {
+  if (prefetching.value) return
+
+  const paths = uniqueImagePaths.value
+  if (paths.length === 0) {
+    ElMessage.warning('还没有可缓存的图片，先同步一次数据')
+    return
+  }
+
+  prefetchProgress.value = { total: paths.length, done: 0, downloaded: 0, skipped: 0, failed: 0 }
+  prefetching.value = true
+  prefetchDone.value = false
+  prefetchVisible.value = true
+
+  try {
+    const result = await window.api.media.prefetch(paths)
+    if (!result.ok || !result.data) {
+      ElMessage.error(result.message ?? '缓存失败')
+      return
+    }
+
+    const { failed, cancelled } = result.data
+    if (cancelled) ElMessage.info('已取消，已下载的图片保留在本地')
+    else if (failed > 0) ElMessage.warning(`缓存完成，${failed} 张失败（可能断网或图片缺失）`)
+    else ElMessage.success('全部缓存完成，断网也能正常看图')
+  } catch {
+    ElMessage.error('缓存失败')
+  } finally {
+    prefetching.value = false
+    prefetchDone.value = true
+    await refreshCacheStats()
+  }
+}
+
+async function onCancelPrefetch(): Promise<void> {
+  try {
+    await window.api.media.cancelPrefetch()
+  } catch {
+    // 取消失败也只是继续下载，不打断用户
+  }
+}
+
+async function onClearCache(): Promise<void> {
+  try {
+    await ElMessageBox.confirm(
+      `将删除本地缓存的 ${cacheStats.value.files} 张图片（${sizeText(cacheStats.value.bytes)}）。` +
+        '删除后再次浏览会重新从服务器下载，不影响记录本身。',
+      '清空图片缓存？',
+      { confirmButtonText: '清空', cancelButtonText: '取消', type: 'warning' }
+    )
+  } catch {
+    return
+  }
+
+  try {
+    cacheStats.value = await window.api.media.clear()
+    if (cacheStats.value.files > 0) {
+      // 有文件被占用（比如刚打开的图还在读），不能假装成功
+      ElMessage.warning(`还有 ${cacheStats.value.files} 张没删掉，稍后再试一次`)
+    } else {
+      ElMessage.success('已清空图片缓存')
+    }
+  } catch {
+    ElMessage.error('清空失败')
+  }
+}
+
+/** 进度订阅的取消函数（组件卸载时解绑，避免重复订阅） */
+let offProgress: (() => void) | null = null
+
 onMounted(async () => {
   try {
     appInfo.value = await window.api.app.info()
@@ -151,6 +272,18 @@ onMounted(async () => {
   } catch {
     autoStartSupported.value = false
   }
+
+  void refreshCacheStats()
+
+  // 进度由主进程推（长任务拿不到 invoke 的中间态）
+  offProgress = window.api.media.onProgress((next) => {
+    prefetchProgress.value = next
+  })
+})
+
+onUnmounted(() => {
+  offProgress?.()
+  offProgress = null
 })
 
 /** 在资源管理器里定位日志文件（不存在时打开所在目录） */
@@ -258,6 +391,37 @@ async function onCopyLogPath(): Promise<void> {
       </p>
     </article>
 
+    <!-- 资源缓存（T10.3）：图片默认按需下载，这里可以一次性全量缓存 -->
+    <article class="card block">
+      <h2 class="block__title">资源缓存</h2>
+      <p class="block__hint">图片默认是"看到哪张下哪张"。一次性全部缓存后，断网也能正常翻图。</p>
+
+      <dl class="facts">
+        <div class="fact">
+          <dt>本地已缓存</dt>
+          <dd>{{ cacheStats.files }} 张 · {{ sizeText(cacheStats.bytes) }}</dd>
+        </div>
+        <div class="fact">
+          <dt>可缓存图片</dt>
+          <dd>{{ uniqueImagePaths.length }} 张</dd>
+        </div>
+      </dl>
+
+      <div class="block__actions">
+        <el-button type="primary" :loading="prefetching" @click="onPrefetch">全量缓存</el-button>
+        <el-button :disabled="prefetching || cacheStats.files === 0" @click="onClearCache">
+          清空缓存
+        </el-button>
+        <span class="block__state">
+          {{
+            cacheStats.files >= uniqueImagePaths.length && uniqueImagePaths.length > 0
+              ? '本地已经齐了'
+              : '缓存过的图片下次打开不用再下载'
+          }}
+        </span>
+      </div>
+    </article>
+
     <!-- 版本与关于 -->
     <article class="card block">
       <h2 class="block__title">版本与关于</h2>
@@ -297,6 +461,33 @@ async function onCopyLogPath(): Promise<void> {
         本程序用于学习斯诺克走位技巧，仅供内部交流使用。
       </p>
     </article>
+
+    <!-- 全量缓存进度（T10.3）：缓存期间不给关，避免"以为没在跑" -->
+    <el-dialog
+      v-model="prefetchVisible"
+      :title="prefetchDone ? '缓存完成' : '正在缓存图片'"
+      width="420px"
+      :close-on-click-modal="false"
+      :show-close="false"
+      append-to-body
+    >
+      <el-progress
+        :percentage="prefetchPercent"
+        :status="prefetchDone ? (prefetchProgress.failed > 0 ? 'warning' : 'success') : undefined"
+      />
+      <p class="prefetch__line">
+        已处理 {{ prefetchProgress.done }} / {{ prefetchProgress.total }} 张
+      </p>
+      <p class="prefetch__line prefetch__line--muted">
+        新下载 {{ prefetchProgress.downloaded }} · 已有 {{ prefetchProgress.skipped }} · 失败
+        {{ prefetchProgress.failed }}
+      </p>
+
+      <template #footer>
+        <el-button v-if="!prefetchDone" @click="onCancelPrefetch">取消</el-button>
+        <el-button v-else type="primary" @click="prefetchVisible = false">知道了</el-button>
+      </template>
+    </el-dialog>
   </section>
 </template>
 
@@ -417,5 +608,18 @@ async function onCopyLogPath(): Promise<void> {
   font-size: var(--font-size-sm);
   line-height: 2;
   color: var(--text-2);
+}
+
+/* 缓存进度弹框的两行说明 */
+.prefetch__line {
+  margin: 0.75rem 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.prefetch__line--muted {
+  margin-top: 0.25rem;
+  color: var(--text-3);
 }
 </style>

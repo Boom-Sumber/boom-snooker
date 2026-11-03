@@ -5,6 +5,7 @@ import type { AuthVaultApi } from '@shared/types/auth'
 import type { LogApi, LogLevel } from '@shared/types/log'
 import type { CacheFileInfo, LocalStoreApi } from '@shared/types/storage'
 import type { AppPreferences, AutoStartState, SystemApi } from '@shared/types/system'
+import type { MediaApi, MediaCacheStats, PrefetchProgress } from '@shared/types/media'
 import type { ThemeApi, ThemeMode, ThemeState } from '@shared/types/theme'
 import type { WindowControls } from '@shared/types/window'
 
@@ -17,6 +18,7 @@ const api: {
   app: AppInfoApi
   log: LogApi
   system: SystemApi
+  media: MediaApi
 } = {
   app: {
     info: () => ipcRenderer.invoke('app:info')
@@ -35,6 +37,18 @@ const api: {
       get: (): Promise<AutoStartState> => ipcRenderer.invoke('autostart:get'),
       set: (enabled: boolean): Promise<AutoStartState> =>
         ipcRenderer.invoke('autostart:set', enabled)
+    }
+  },
+  media: {
+    stats: (): Promise<MediaCacheStats> => ipcRenderer.invoke('media:stats'),
+    prefetch: (paths: string[]) => ipcRenderer.invoke('media:prefetch', paths),
+    cancelPrefetch: (): Promise<void> => ipcRenderer.invoke('media:prefetch-cancel'),
+    clear: (): Promise<MediaCacheStats> => ipcRenderer.invoke('media:clear'),
+    onProgress: (callback: (progress: PrefetchProgress) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, progress: PrefetchProgress): void =>
+        callback(progress)
+      ipcRenderer.on('media:prefetch-progress', handler)
+      return () => ipcRenderer.removeListener('media:prefetch-progress', handler)
     }
   },
   log: {

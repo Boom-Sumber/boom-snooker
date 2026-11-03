@@ -19,7 +19,7 @@
  * ⚠️ `registerSchemesAsPrivileged` **必须在 app ready 之前**调用，
  * 所以它写在模块顶层 —— 由 `index.ts` 顶部 import 触发，早于 `whenReady`。
  */
-import { app, net, protocol } from 'electron'
+import { app, ipcMain, net, protocol } from 'electron'
 import { createHash } from 'node:crypto'
 import {
   closeSync,
@@ -30,9 +30,12 @@ import {
   readdirSync,
   renameSync,
   rmSync,
+  statSync,
   writeSync
 } from 'node:fs'
 import { dirname, extname, join } from 'node:path'
+import { mainLog } from './log'
+import type { MediaCacheStats, PrefetchProgress } from '@shared/types/media'
 
 /** 渲染层拼 URL 用的 scheme，`src/shared/media/url.ts` 必须与之一致 */
 export const MEDIA_SCHEME = 'snooker-media'
@@ -250,4 +253,173 @@ export function registerMediaProtocol(): void {
 /** 图片缓存目录（排查问题用，别在业务里依赖它） */
 export function mediaCacheDirectory(): string {
   return mediaDir()
+}
+
+/* ────────────────────────────────────────────────────────────
+ * 全量缓存（T10.3）
+ *
+ * 平时是"打开到哪张下哪张"，用户第一次翻全部记录时会有明显的加载感。
+ * 这里给一个显式的"一次性全量缓存"：并发 5、命中缓存直接跳过、逐张回报进度、
+ * 支持取消（已下载的保留，未开始的不再下）。
+ *
+ * 为什么不用 `Promise.all(paths.map(...))`：316 张图会瞬间发 316 个请求，
+ * 既打满带宽也容易被 Storage 限流；固定并发 + 游标更稳，进度也更好算。
+ * ──────────────────────────────────────────────────────────── */
+
+/** 取消标志 / 运行标志：模块级，因为同一时刻只允许一个缓存任务 */
+let prefetchCancelled = false
+let prefetchRunning = false
+
+/** 缓存目录统计（跳过 `.tmp` 残留） */
+export function mediaCacheStats(): MediaCacheStats {
+  try {
+    const dir = mediaDir()
+    let files = 0
+    let bytes = 0
+    for (const entry of readdirSync(dir)) {
+      if (entry.endsWith('.tmp')) continue
+      try {
+        const stat = statSync(join(dir, entry))
+        if (stat.isFile()) {
+          files += 1
+          bytes += stat.size
+        }
+      } catch {
+        // 正被别的进程占用 / 刚好被删 —— 跳过即可，统计不需要精确到字节
+      }
+    }
+    return { files, bytes }
+  } catch {
+    // 目录不存在（还没缓存过任何图）
+    return { files: 0, bytes: 0 }
+  }
+}
+
+/** 清空缓存目录（保留目录本身），返回清空后的统计 */
+export function clearMediaCache(): MediaCacheStats {
+  const dir = mediaDir()
+
+  /**
+   * 逐个删，**每个文件单独 try**：
+   * 一开始把整个 for 包在一个 try 里，结果某个文件删失败（占用 / 刚被并发写入）
+   * 直接把循环中断了 —— 界面上提示"已清空"，实际还剩 284 张（T10.3 实测踩到）。
+   * 现在：单个失败不影响后面的；删完再扫一遍，有残留就再来一轮（写 tmp 的通常已结束）。
+   */
+  const sweep = (): number => {
+    let entries: string[]
+    try {
+      entries = readdirSync(dir)
+    } catch {
+      return 0
+    }
+    let failed = 0
+    let firstError = ''
+    for (const entry of entries) {
+      try {
+        rmSync(join(dir, entry), { force: true, recursive: true })
+      } catch (error) {
+        // 这个文件暂时删不掉：留给第二轮 / 下次清理，不要让整轮中断
+        failed += 1
+        if (!firstError) firstError = String((error as NodeJS.ErrnoException).code ?? error)
+      }
+    }
+    if (failed > 0) mainLog.warn('media', `清空缓存有 ${failed} 个文件删不掉`, firstError)
+    return failed
+  }
+
+  sweep()
+  // 第二轮：处理第一轮里正在被写入（.tmp）或短暂占用的文件
+  if (mediaCacheStats().files > 0) sweep()
+
+  return mediaCacheStats()
+}
+
+/**
+ * 批量下载到本地缓存
+ *
+ * `paths` 是 Storage 相对路径（`balls/xxx.webp`），会去重、过滤非法路径。
+ * 每处理完一张回调一次进度；`prefetchCancelled` 置位后各 worker 在下一次循环退出。
+ */
+export async function prefetchImages(
+  paths: string[],
+  onProgress: (progress: PrefetchProgress) => void
+): Promise<PrefetchProgress & { cancelled: boolean }> {
+  const unique: string[] = []
+  const seen = new Set<string>()
+  for (const raw of paths) {
+    const relative = safeRelativePath(String(raw ?? '').replace(/^\/+/, ''))
+    if (!relative || seen.has(relative)) continue
+    seen.add(relative)
+    unique.push(relative)
+  }
+
+  const progress: PrefetchProgress = {
+    total: unique.length,
+    done: 0,
+    downloaded: 0,
+    skipped: 0,
+    failed: 0
+  }
+  if (unique.length === 0) return { ...progress, cancelled: false }
+
+  /** 同时最多 5 张，够快又不会把带宽打满 */
+  const CONCURRENCY = 5
+  let cursor = 0
+
+  const worker = async (): Promise<void> => {
+    while (!prefetchCancelled) {
+      const index = cursor
+      cursor += 1
+      if (index >= unique.length) return
+
+      const relative = unique[index]
+      if (readCached(cacheFile(relative))) {
+        progress.skipped += 1
+      } else {
+        // 复用按需下载那条路径（自带原子写 + 并发去重 + 大小上限）
+        const buffer = await loadImage(relative)
+        if (buffer) progress.downloaded += 1
+        else progress.failed += 1
+      }
+
+      progress.done += 1
+      onProgress({ ...progress })
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, unique.length) }, () => worker()))
+
+  return { ...progress, cancelled: prefetchCancelled }
+}
+
+/** 全量缓存相关 IPC（`whenReady` 之后调用） */
+export function registerMediaIpc(): void {
+  ipcMain.handle('media:stats', (): MediaCacheStats => mediaCacheStats())
+
+  ipcMain.handle('media:clear', (): MediaCacheStats => clearMediaCache())
+
+  ipcMain.handle(
+    'media:prefetch',
+    async (event, paths: string[]): Promise<{ ok: boolean; data?: unknown; message?: string }> => {
+      if (prefetchRunning) return { ok: false, message: '正在缓存中，请稍候' }
+
+      prefetchRunning = true
+      prefetchCancelled = false
+      try {
+        const result = await prefetchImages(Array.isArray(paths) ? paths : [], (progress) => {
+          // 窗口可能已经被关掉（缩到托盘不算），发送前判一次存活
+          if (!event.sender.isDestroyed()) {
+            event.sender.send('media:prefetch-progress', progress)
+          }
+        })
+        return { ok: true, data: result }
+      } finally {
+        prefetchRunning = false
+      }
+    }
+  )
+
+  ipcMain.handle('media:prefetch-cancel', (): void => {
+    prefetchCancelled = true
+  })
 }

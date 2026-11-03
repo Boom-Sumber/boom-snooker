@@ -4,7 +4,7 @@ import { registerAppInfoIpc } from './appInfo'
 import { registerAuthIpc } from './auth'
 import { isHiddenLaunch, registerAutoStartIpc } from './autostart'
 import { initLogging, mainLog, registerLogIpc } from './log'
-import { registerMediaProtocol } from './media'
+import { registerMediaIpc, registerMediaProtocol } from './media'
 import { initPreferences, registerPreferencesIpc } from './preferences'
 import { registerStoreIpc } from './store'
 import { initTheme } from './theme'
@@ -44,6 +44,7 @@ if (!gotSingleInstanceLock) {
     registerLogIpc()
     registerPreferencesIpc()
     registerAutoStartIpc()
+    registerMediaIpc()
 
     // 开发期 F12 开关 DevTools，生产期忽略 Ctrl+R
     app.on('browser-window-created', (_, window) => {
