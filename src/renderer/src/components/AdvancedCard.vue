@@ -10,6 +10,7 @@ import { computed } from 'vue'
 import { imageUrl } from '@shared/media/url'
 import type { Advanced } from '@renderer/stores'
 import AuthorTag from '@renderer/components/AuthorTag.vue'
+import LazyImage from '@renderer/components/LazyImage.vue'
 
 const props = defineProps<{ item: Advanced }>()
 
@@ -43,7 +44,7 @@ const updatedText = computed(() => {
     </div>
 
     <div class="advanced-card__media">
-      <img v-if="image" :src="image" :alt="item.title" loading="lazy" />
+      <LazyImage v-if="image" :src="image" :alt="item.title" />
       <span v-else class="advanced-card__empty">无图片</span>
     </div>
 
@@ -97,12 +98,6 @@ const updatedText = computed(() => {
   background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-}
-
-.advanced-card__media img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
 }
 
 .advanced-card__empty {

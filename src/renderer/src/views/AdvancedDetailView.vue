@@ -24,6 +24,7 @@ import { getReviewAdvanced, reviewRecord } from '@shared/api/review'
 import { getMyAdvanced, type AdvancedWithReview, type ReviewStatus } from '@shared/api/myRecords'
 import ReviewStamp from '@renderer/components/ReviewStamp.vue'
 import AuthorTag from '@renderer/components/AuthorTag.vue'
+import LazyImage from '@renderer/components/LazyImage.vue'
 
 const props = defineProps<{ category: string; id: string }>()
 
@@ -295,7 +296,7 @@ async function onSaved(): Promise<void> {
         :title="image ? '查看大图' : '暂无图片'"
         @click="viewerVisible = true"
       >
-        <img v-if="image" :src="image" :alt="item.title" />
+        <LazyImage v-if="image" :src="image" :alt="item.title" mode="natural" max-height="60vh" />
         <span v-else class="detail__empty">无图片</span>
       </button>
 
@@ -419,11 +420,7 @@ async function onSaved(): Promise<void> {
   cursor: default;
 }
 
-.detail__media img {
-  max-width: 100%;
-  max-height: 60vh;
-  object-fit: contain;
-}
+/* 最大高度由 LazyImage 的 max-height="60vh" 负责 */
 
 .detail__empty {
   width: 100%;

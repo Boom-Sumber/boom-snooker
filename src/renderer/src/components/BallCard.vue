@@ -17,6 +17,7 @@ import { computed } from 'vue'
 import { imageUrl } from '@shared/media/url'
 import type { Ball } from '@renderer/stores'
 import AuthorTag from '@renderer/components/AuthorTag.vue'
+import LazyImage from '@renderer/components/LazyImage.vue'
 
 const props = defineProps<{
   ball: Ball
@@ -92,7 +93,7 @@ const updatedText = computed(() => {
         :class="{ 'thumb--empty': !item.url }"
         :title="item.label"
       >
-        <img v-if="item.url" :src="item.url" :alt="item.label" loading="lazy" />
+        <LazyImage v-if="item.url" :src="item.url" :alt="item.label" />
         <span v-else class="thumb__empty">{{ item.label }}无图</span>
       </div>
     </div>
@@ -228,12 +229,6 @@ const updatedText = computed(() => {
   background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-}
-
-.thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
 }
 
 .thumb--empty {

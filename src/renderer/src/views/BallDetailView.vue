@@ -29,6 +29,7 @@ import { getReviewBall, reviewRecord } from '@shared/api/review'
 import { getMyBall, type BallWithReview, type ReviewStatus } from '@shared/api/myRecords'
 import ReviewStamp from '@renderer/components/ReviewStamp.vue'
 import AuthorTag from '@renderer/components/AuthorTag.vue'
+import LazyImage from '@renderer/components/LazyImage.vue'
 
 const props = defineProps<{ color: string; id: string }>()
 
@@ -361,7 +362,7 @@ async function onSaved(): Promise<void> {
           <figure class="media">
             <figcaption class="media__label">击球点</figcaption>
             <div class="media__box media__box--square">
-              <img v-if="impactUrl" :src="impactUrl" alt="击球点示意图" loading="lazy" />
+              <LazyImage v-if="impactUrl" :src="impactUrl" alt="击球点示意图" fit="fill" />
               <span v-else class="media__empty">无图</span>
             </div>
           </figure>
@@ -369,7 +370,7 @@ async function onSaved(): Promise<void> {
           <figure class="media">
             <figcaption class="media__label">蓝点</figcaption>
             <div class="media__box media__box--square">
-              <img v-if="blueUrl" :src="blueUrl" alt="蓝点示意图" loading="lazy" />
+              <LazyImage v-if="blueUrl" :src="blueUrl" alt="蓝点示意图" fit="fill" />
               <span v-else class="media__empty">无图</span>
             </div>
           </figure>
@@ -384,7 +385,7 @@ async function onSaved(): Promise<void> {
             title="查看原图"
             @click="viewerVisible = true"
           >
-            <img :src="routeUrl" alt="路线图" loading="lazy" />
+            <LazyImage :src="routeUrl" alt="路线图" mode="natural" max-height="45vh" />
           </button>
           <div v-else class="media__box media__box--route media__box--empty">无路线图</div>
         </figure>
@@ -575,11 +576,7 @@ async function onSaved(): Promise<void> {
   height: 9.375rem;
 }
 
-.media__box--square img {
-  width: 100%;
-  height: 100%;
-  object-fit: fill;
-}
+/* 拉伸填满由 LazyImage 的 fit="fill" 负责，这里不再覆盖 img 样式 */
 
 /* 路线图：框贴着图片，可点开原图 */
 .media__box--route {
@@ -589,12 +586,7 @@ async function onSaved(): Promise<void> {
   cursor: zoom-in;
 }
 
-.media__box--route img {
-  display: block;
-  max-width: 100%;
-  max-height: 45vh;
-  object-fit: contain;
-}
+/* 最大高度由 LazyImage 的 max-height="45vh" 负责 */
 
 .media__box--empty {
   width: 100%;
