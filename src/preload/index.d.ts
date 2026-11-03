@@ -3,6 +3,7 @@ import type { AppInfoApi } from '@shared/types/app'
 import type { AuthVaultApi } from '@shared/types/auth'
 import type { LogApi } from '@shared/types/log'
 import type { LocalStoreApi } from '@shared/types/storage'
+import type { SystemApi } from '@shared/types/system'
 import type { ThemeApi } from '@shared/types/theme'
 import type { WindowControls } from '@shared/types/window'
 
@@ -16,6 +17,7 @@ declare global {
       store: LocalStoreApi
       app: AppInfoApi
       log: LogApi
+      system: SystemApi
     }
   }
 }

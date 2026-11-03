@@ -14,6 +14,7 @@ import { ElMessage } from 'element-plus'
 import { storeToRefs } from 'pinia'
 import { useDatasetStore, useThemeStore } from '@renderer/stores'
 import type { AppInfo } from '@shared/types/app'
+import type { CloseAction } from '@shared/types/system'
 import type { ThemeMode } from '@shared/types/theme'
 
 const theme = useThemeStore()
@@ -24,6 +25,15 @@ const appInfo = ref<AppInfo | null>(null)
 const syncingNow = ref(false)
 /** 日志文件路径（T6.2）：排查问题时让用户直接打开/复制，不用教他去找 %APPDATA% */
 const logPath = ref('')
+
+/** 本机偏好（T10.1）：关闭窗口是缩到托盘还是直接退出 */
+const closeAction = ref<CloseAction>('tray')
+const prefsReady = ref(false)
+
+const CLOSE_OPTIONS: { value: CloseAction; label: string }[] = [
+  { value: 'tray', label: '最小化到托盘' },
+  { value: 'quit', label: '直接退出' }
+]
 
 const THEME_OPTIONS: { value: ThemeMode; label: string; hint: string }[] = [
   { value: 'light', label: '亮色', hint: '白天用' },
@@ -74,6 +84,21 @@ async function onThemeChange(mode: ThemeMode): Promise<void> {
   await theme.setMode(mode)
 }
 
+/**
+ * 改关闭行为（T10.1）
+ *
+ * 先改内存让用户立刻看到反馈，再落盘；主进程写失败也不会让界面跳回去 ——
+ * 偏好文件写不进去只是"下次启动不记得"，本次会话仍然按用户的选择走。
+ */
+async function onCloseActionChange(value: CloseAction): Promise<void> {
+  closeAction.value = value
+  try {
+    await window.api.system.setPrefs({ closeAction: value })
+  } catch {
+    ElMessage.warning('设置没保存成功，这次生效、下次启动可能回到默认')
+  }
+}
+
 onMounted(async () => {
   try {
     appInfo.value = await window.api.app.info()
@@ -85,6 +110,15 @@ onMounted(async () => {
     logPath.value = await window.api.log.path()
   } catch {
     logPath.value = ''
+  }
+
+  try {
+    const prefs = await window.api.system.prefs()
+    closeAction.value = prefs.closeAction
+    prefsReady.value = true
+  } catch {
+    // 拿不到偏好（老版本主进程 / IPC 没起来）：保持默认，不显示这块，免得误导
+    prefsReady.value = false
   }
 })
 
@@ -153,6 +187,28 @@ async function onCopyLogPath(): Promise<void> {
         </el-button>
         <span class="block__state">{{ syncStateText() }}</span>
       </div>
+    </article>
+
+    <!-- 系统（T10.1，D36）：托盘与关闭行为 -->
+    <article v-if="prefsReady" class="card block">
+      <h2 class="block__title">系统</h2>
+      <p class="block__hint">关闭窗口时怎么办。</p>
+
+      <el-radio-group
+        :model-value="closeAction"
+        @change="(value: CloseAction) => onCloseActionChange(value)"
+      >
+        <el-radio-button v-for="option in CLOSE_OPTIONS" :key="option.value" :value="option.value">
+          {{ option.label }}
+        </el-radio-button>
+      </el-radio-group>
+      <p class="block__hint">
+        {{
+          closeAction === 'tray'
+            ? '关闭窗口后程序留在后台，点托盘图标就能叫回来；要彻底退出用托盘菜单里的「退出」。'
+            : '关闭窗口即结束程序，下次要重新打开。'
+        }}
+      </p>
     </article>
 
     <!-- 版本与关于 -->

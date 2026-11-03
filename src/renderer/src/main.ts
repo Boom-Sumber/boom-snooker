@@ -29,3 +29,8 @@ app.use(createPinia()).use(ElementPlus, { locale: zhCn }).use(router).mount('#ap
 // 挂载之后再拉数据 / 恢复会话：首屏用本地缓存先渲染，网络慢不阻塞界面。
 // 两个 init 都不抛错（见 stores/index.ts），失败只影响"新不新"，不影响"能不能看"。
 bootstrapStores()
+
+// 托盘菜单「打开设置」会往这里推路由（T10.1）：窗口可能只是被藏着，主进程先叫回来再跳
+window.api?.system?.onNavigate((path: string) => {
+  void router.push(path)
+})

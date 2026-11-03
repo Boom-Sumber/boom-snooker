@@ -16,7 +16,7 @@ import { is } from '@electron-toolkit/utils'
 import type { LogLevel } from '@shared/types/log'
 
 /** 主进程自己的日志：带 `(main)` 作用域，和渲染层上报的 `(renderer:xxx)` 区分开 */
-const main = log.scope('main')
+export const mainLog = log.scope('main')
 
 /** 单个日志文件上限，超过就轮转（electron-log 会改名成 main.old.log） */
 const FILE_MAX_SIZE = 5 * 1024 * 1024
@@ -50,42 +50,42 @@ export function initLogging(): void {
   // 注意：这里**不退出进程**。主进程的未知异常继续跑有风险，但直接崩掉用户更难受；
   // 日志里有完整堆栈，出问题后能定位，必要时再人工重启。
   process.on('uncaughtException', (error) => {
-    main.error('uncaughtException', error)
+    mainLog.error('uncaughtException', error)
   })
   process.on('unhandledRejection', (reason) => {
-    main.error('unhandledRejection', reason)
+    mainLog.error('unhandledRejection', reason)
   })
 
   // 渲染进程崩溃 / 子进程异常：窗口会白屏，必须留证据
   app.on('render-process-gone', (_event, _contents, details) => {
-    main.error('render-process-gone', details)
+    mainLog.error('render-process-gone', details)
   })
   app.on('child-process-gone', (_event, details) => {
-    main.error('child-process-gone', details)
+    mainLog.error('child-process-gone', details)
   })
 
   // 正常退出也记一条：日志末尾没有这行 = 上次是被杀掉的（任务管理器 / 断电）
   app.on('will-quit', () => {
-    main.info('退出')
+    mainLog.info('退出')
   })
 
   // 页面加载失败（dev server 没起、生产包文件缺失）：白屏时最有用的一条
   app.on('web-contents-created', (_event, contents) => {
     contents.on('did-fail-load', (_e, code, description, url, isMainFrame) => {
       if (!isMainFrame) return
-      main.error(`页面加载失败 code=${code} desc=${description} url=${url}`)
+      mainLog.error(`页面加载失败 code=${code} desc=${description} url=${url}`)
     })
     contents.on('unresponsive', () => {
-      main.warn('渲染进程无响应')
+      mainLog.warn('渲染进程无响应')
     })
   })
 
-  main.info(
+  mainLog.info(
     `启动 v${app.getVersion()} · electron ${process.versions.electron} · ` +
       `chrome ${process.versions.chrome} · ${process.platform}/${process.arch} · ` +
       `dev=${is.dev}`
   )
-  main.info(`日志文件：${logFilePath()}`)
+  mainLog.info(`日志文件：${logFilePath()}`)
 }
 
 /** 注册日志相关 IPC（`app.whenReady()` 之后调用） */

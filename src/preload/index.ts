@@ -4,6 +4,7 @@ import type { AppInfoApi } from '@shared/types/app'
 import type { AuthVaultApi } from '@shared/types/auth'
 import type { LogApi, LogLevel } from '@shared/types/log'
 import type { CacheFileInfo, LocalStoreApi } from '@shared/types/storage'
+import type { AppPreferences, SystemApi } from '@shared/types/system'
 import type { ThemeApi, ThemeMode, ThemeState } from '@shared/types/theme'
 import type { WindowControls } from '@shared/types/window'
 
@@ -15,9 +16,21 @@ const api: {
   store: LocalStoreApi
   app: AppInfoApi
   log: LogApi
+  system: SystemApi
 } = {
   app: {
     info: () => ipcRenderer.invoke('app:info')
+  },
+  system: {
+    prefs: (): Promise<AppPreferences> => ipcRenderer.invoke('prefs:get'),
+    setPrefs: (patch: Partial<AppPreferences>): Promise<AppPreferences> =>
+      ipcRenderer.invoke('prefs:set', patch),
+    /** 托盘菜单「打开设置」：主进程推路由，渲染层跟着跳 */
+    onNavigate: (callback: (path: string) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, path: string): void => callback(path)
+      ipcRenderer.on('app:navigate', handler)
+      return () => ipcRenderer.removeListener('app:navigate', handler)
+    }
   },
   log: {
     // 用 send 不用 invoke：日志是"记一笔就走"，不该让业务等回执
