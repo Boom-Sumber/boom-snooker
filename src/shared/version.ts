@@ -15,7 +15,7 @@
  * ⚠️ 这个常量只能约束**比它新的**构建（老构建里根本没有这段代码）。
  *    所以要抬门槛，必须发一版新包，再指望这一版去强制更老的版本。
  */
-export const MIN_SUPPORTED_VERSION = '0.1.4'
+export const MIN_SUPPORTED_VERSION = '0.2.1'
 
 /** `1.2.3` / `v1.2.3` / `1.2.3-beta.1` → `[1,2,3]`（只取前三段数字，够用且不引依赖） */
 export function versionParts(version: string): number[] {
