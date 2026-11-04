@@ -64,6 +64,17 @@ async function onInstall(): Promise<void> {
 async function onQuit(): Promise<void> {
   await window.api.system.quit()
 }
+
+/**
+ * 右上角关闭 = 退出程序（2026-11-04）
+ *
+ * 「关闭弹窗则直接退出应用」：强制更新没有"稍后再说"这条路。
+ * 走 `before-close` 而不是 `@close` —— 后者是关闭动画结束后才触发，
+ * 期间弹窗会先消失一下再退出，观感像"关掉了但程序还在"。
+ */
+function onCloseForced(): void {
+  void window.api.system.quit()
+}
 </script>
 
 <template>
@@ -73,7 +84,8 @@ async function onQuit(): Promise<void> {
     width="440px"
     align-center
     append-to-body
-    :show-close="false"
+    :show-close="true"
+    :before-close="onCloseForced"
     :close-on-click-modal="false"
     :close-on-press-escape="false"
   >
@@ -88,6 +100,7 @@ async function onQuit(): Promise<void> {
         }}，旧版的接口与数据格式可能已经变了。
       </p>
       <p v-else class="update__hint">这次更新由作者标记为必须更新。</p>
+      <p class="update__hint">这个提示不能跳过；关闭它会直接退出程序。</p>
 
       <!-- 下载中：进度条 + 已下载/总量 + 速度，全部来自主进程快照 -->
       <template v-if="phase === 'downloading'">

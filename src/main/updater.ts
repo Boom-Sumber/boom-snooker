@@ -23,11 +23,18 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import log from 'electron-log/main'
 import type { UpdateInfoLite, UpdateState } from '@shared/types/update'
+import { compareVersion, MIN_SUPPORTED_VERSION, resolveMinVersion } from '@shared/version'
 import { mainLog } from './log'
 import { setQuitting, setUpdateAvailable } from './tray'
 
-/** 启动后多久做第一次检查：太早会和首屏抢带宽，太晚用户已经关了设置页 */
-const STARTUP_DELAY = 8_000
+/**
+ * 启动后多久做第一次检查
+ *
+ * 3 秒：够首屏（启动页 / 主页骨架）先画出来，又足够早 ——
+ * 低于最低版本的客户端要在用户真正开始用之前就被拦住。
+ * 清单 + 策略合计不到 1 KB，不会和首屏抢带宽。
+ */
+const STARTUP_DELAY = 3_000
 
 /** 自动检查间隔（6 小时） */
 const CHECK_INTERVAL = 6 * 60 * 60 * 1000
@@ -54,28 +61,6 @@ const state: UpdateState = {
   error: null,
   checkedAt: null,
   unsupportedReason: null
-}
-
-// ────────────────────────────── 版本比较 ──────────────────────────────
-
-/** `1.2.3` / `v1.2.3` / `1.2.3-beta.1` → `[1,2,3]`（只取前三段数字，够用且不引依赖） */
-function versionParts(version: string): number[] {
-  return version
-    .replace(/^v/i, '')
-    .split('.')
-    .slice(0, 3)
-    .map((part) => Number.parseInt(part, 10) || 0)
-}
-
-/** <0 表示 a 更低，0 相等，>0 更高 */
-function compareVersion(a: string, b: string): number {
-  const left = versionParts(a)
-  const right = versionParts(b)
-  for (let i = 0; i < 3; i += 1) {
-    const diff = (left[i] ?? 0) - (right[i] ?? 0)
-    if (diff !== 0) return diff
-  }
-  return 0
 }
 
 // ────────────────────────────── 状态广播 ──────────────────────────────
@@ -153,7 +138,7 @@ function detectSupport(): void {
 /**
  * 拉 `policy.json` 拿最低可用版本。
  *
- * 失败一律返回 null（= 不强制）。这里刻意**不做重试**：策略是"下次检查再说"的东西，
+ * 失败一律返回 null（= 交给客户端的兜底常量）。这里刻意**不做重试**：策略是"下次检查再说"的东西，
  * 为它多打几次请求不划算，离线用户还会白白等超时。
  */
 async function fetchMinSupportedVersion(): Promise<string | null> {
@@ -174,16 +159,34 @@ async function fetchMinSupportedVersion(): Promise<string | null> {
   }
 }
 
-/** 拿策略并据此判定是否需要强制更新；`info.version` 为空说明没有新版，直接不强制 */
+/**
+ * 拿策略并据此判定是否需要强制更新
+ *
+ * 两条硬规则：
+ *   1. **取更严的最低版本**：服务端 `policy.json` 与客户端兜底取高者（见 `@shared/version`）
+ *   2. **只有能升到合规版本才强制**：如果线上最新的版本自己都低于最低版本（发布配错），
+ *      强制只会把用户锁死在一个无论怎么更都不合规的状态里 —— 这种情况记日志、不强制
+ *
+ * `info.version` 为空（没有新版）时也一定不强制。
+ */
 async function applyPolicy(newVersion: string | null): Promise<void> {
-  const min = await fetchMinSupportedVersion()
+  const policyMin = await fetchMinSupportedVersion()
+  const min = resolveMinVersion(policyMin)
   state.minSupportedVersion = min
-  state.mandatory = Boolean(min && newVersion && compareVersion(state.currentVersion, min) < 0)
+
+  const belowMin = compareVersion(state.currentVersion, min) < 0
+  const canSatisfy = Boolean(newVersion && compareVersion(newVersion, min) >= 0)
+  state.mandatory = belowMin && canSatisfy
+
+  const source = policyMin ? `服务端 ${policyMin}` : '服务端未取到，用客户端兜底'
   mainLog.info(
     'updater',
-    min
-      ? `最低可用版本 ${min}，当前 v${state.currentVersion}${state.mandatory ? '（低于最低版本，强制更新）' : ''}`
-      : '未取到更新策略（policy.json），按非强制处理'
+    `最低可用版本 ${min}（${source}；客户端兜底 ${MIN_SUPPORTED_VERSION}），当前 v${state.currentVersion}` +
+      (state.mandatory
+        ? '｜低于最低版本，强制更新'
+        : belowMin && !canSatisfy
+          ? '｜低于最低版本但线上没有合规版本，本次不强制'
+          : '')
   )
   broadcast()
 }
