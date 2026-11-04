@@ -325,10 +325,11 @@ const update = useUpdateStore()
   padding-inline: 0.5rem;
 }
 
-/* 与一级菜单同构：同样的高度、圆角、hover，只是少了展开箭头 */
+/* 与一级菜单同构：同样的三列布局、高度、圆角、hover，只是少了展开箭头 */
 .pinned {
-  display: flex;
-  gap: 0.875rem;
+  display: grid;
+  /* 图标列 / 文字列 / 等宽空列：两边对称，文字落在卡片中轴（见 .group__header） */
+  grid-template-columns: 1.25rem 1fr 1.25rem;
   align-items: center;
   padding: 0.5rem 0.625rem;
   font-size: 1.0625rem;
@@ -372,13 +373,20 @@ const update = useUpdateStore()
 }
 
 .pinned__label {
+  min-width: 0;
   overflow: hidden;
+  text-align: center;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
+/*
+ * 折叠态只剩图标：三列布局在 2.25rem 宽度里会撑破，
+ * 换成单列居中（文字本来就没渲染）
+ */
 .sidebar--collapsed .pinned {
-  justify-content: center;
+  grid-template-columns: 1.25rem;
+  place-content: center;
   width: 2.25rem;
   height: 2.25rem;
   margin-inline: auto;
@@ -404,8 +412,15 @@ const update = useUpdateStore()
 
 .group__header {
   position: relative;
-  display: flex;
-  gap: 0.875rem;
+  display: grid;
+  /*
+   * 图标列 / 文字列 / 等宽空列
+   *
+   * 用户反馈：标题比二级菜单「靠左」。二级菜单是整行居中，而一级菜单是
+   * 「图标 + 文字」从左往右排，文字必然右移。这里让左右两列等宽（1.25rem），
+   * 中间那列的文字才是真正落在卡片中轴上（左右各让出同样的图标宽度）。
+   */
+  grid-template-columns: 1.25rem 1fr 1.25rem;
   align-items: center;
   padding: 0.5rem 0.625rem;
   font-family: inherit;
@@ -449,7 +464,9 @@ const update = useUpdateStore()
 }
 
 .group__label {
+  min-width: 0;
   overflow: hidden;
+  text-align: center;
   white-space: nowrap;
   text-overflow: ellipsis;
 }

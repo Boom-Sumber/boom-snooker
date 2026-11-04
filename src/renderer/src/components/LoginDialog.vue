@@ -10,6 +10,7 @@
 import { reactive, ref, watch } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import RegisterDialog from '@renderer/components/RegisterDialog.vue'
+import EmailInput from '@renderer/components/EmailInput.vue'
 import { useAuthStore, useNetworkStore } from '@renderer/stores'
 
 const props = defineProps<{ visible: boolean }>()
@@ -85,12 +86,8 @@ async function submit(): Promise<void> {
   >
     <el-form ref="formRef" :model="model" :rules="rules" label-width="4rem" @submit.prevent>
       <el-form-item label="邮箱" prop="email">
-        <el-input
-          v-model="model.email"
-          placeholder="name@example.com"
-          autocomplete="username"
-          @keyup.enter="submit"
-        />
+        <!-- 回车在这里是「选中联想后缀」，提交留给密码框（见 EmailInput 注释） -->
+        <EmailInput v-model="model.email" />
       </el-form-item>
 
       <el-form-item label="密码" prop="password">

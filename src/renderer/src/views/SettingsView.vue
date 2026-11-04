@@ -1,11 +1,12 @@
 <script setup lang="ts">
 /**
- * 系统设置（T3.7）
+ * 系统设置（T3.7，2026-11-04 重排版）
  *
- * 三块：主题 / 数据同步 / 版本与关于。
- *
- * 「关于」不再单独开页（旧版有，新版并入这里）—— 版本号、运行时版本、
- * 作者联系方式都属于"看一眼就行"的信息，单独一页反而多一次点击。
+ * 排版约定（改之前先看这段）：
+ *   - 四段：外观 / 启动与关闭 / 数据与缓存 / 版本与更新
+ *   - 每段内部一律「左侧标题 + 说明，右侧控件」的行式布局，行与行之间只用一条
+ *     分隔线，**不给行加背景色块**（原来灰底小块堆着看很乱）
+ *   - 只有两种状态的设置一律用开关（缩到托盘 / 开机自启），三选一的主题用分段按钮
  *
  * 版本号从主进程 `app:info` 拿，不写死：写死的话每次发版都要改代码。
  */
@@ -14,7 +15,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { storeToRefs } from 'pinia'
 import { useDatasetStore, useThemeStore, useUpdateStore } from '@renderer/stores'
 import type { AppInfo } from '@shared/types/app'
-import type { AutoStartState, CloseAction } from '@shared/types/system'
+import type { CloseAction } from '@shared/types/system'
 import type { MediaCacheStats, PrefetchProgress } from '@shared/types/media'
 import type { ThemeMode } from '@shared/types/theme'
 
@@ -85,16 +86,16 @@ async function refreshCacheStats(): Promise<void> {
   }
 }
 
-const CLOSE_OPTIONS: { value: CloseAction; label: string }[] = [
-  { value: 'tray', label: '最小化到托盘' },
-  { value: 'quit', label: '直接退出' }
-]
-
 const THEME_OPTIONS: { value: ThemeMode; label: string; hint: string }[] = [
   { value: 'light', label: '亮色', hint: '白天用' },
   { value: 'dark', label: '暗色', hint: '夜里不刺眼' },
-  { value: 'system', label: '跟随系统', hint: '系统切了这里也跟着切' }
+  { value: 'system', label: '跟随系统', hint: '系统切换时跟着变' }
 ]
+
+/** 主题当前选项的一句说明：换选项时跟着变，不再固定占两行 */
+const themeHint = computed(
+  () => THEME_OPTIONS.find((item) => item.value === theme.mode)?.hint ?? '切换立即生效'
+)
 
 function formatTime(raw: number | null): string {
   if (!raw) return '—'
@@ -123,6 +124,26 @@ function syncStateText(): string {
   }
 }
 
+/** 数据同步那一行的说明：快照 / 条数 / 上次同步，用间距分隔，不再摆一张信息表格 */
+const syncSummary = computed(() => {
+  const parts = [
+    version.value ? `快照 v${version.value}` : '快照 —',
+    `${balls.value.length} 条彩球`,
+    `${advanced.value.length} 条进阶`,
+    `上次同步 ${formatTime(lastSyncAt.value)}`
+  ]
+  return parts.join(' · ')
+})
+
+const cacheSummary = computed(() => {
+  const { files, bytes } = cacheStats.value
+  const total = uniqueImagePaths.value.length
+  return `本地已缓存 ${files} 张（${sizeText(bytes)}）· 共 ${total} 张`
+})
+
+/** 关闭行为用开关表示：开 = 缩到托盘，关 = 直接退出 */
+const closeToTray = computed(() => closeAction.value === 'tray')
+
 async function onSync(): Promise<void> {
   if (syncingNow.value) return
   syncingNow.value = true
@@ -142,23 +163,17 @@ async function onThemeChange(mode: ThemeMode): Promise<void> {
 }
 
 /**
- * 改关闭行为（T10.1）
- *
- * 先改内存让用户立刻看到反馈，再落盘；主进程写失败也不会让界面跳回去 ——
- * 偏好文件写不进去只是"下次启动不记得"，本次会话仍然按用户的选择走。
- */
-/**
  * 改开机自启（T10.2）
  *
  * 以主进程返回的**实际值**为准：系统可能拒绝写入（权限/策略），
  * 那时候开关要弹回去，不能显示一个假的成功。
  */
-async function onAutoStartChange(value: boolean): Promise<void> {
+async function onAutoStartChange(value: string | number | boolean): Promise<void> {
   try {
-    const state: AutoStartState = await window.api.system.autostart.set(value)
+    const state = await window.api.system.autostart.set(value === true)
     autoStart.value = state.enabled
     autoStartSupported.value = state.supported
-    if (state.enabled !== value) {
+    if (state.enabled !== (value === true)) {
       ElMessage.warning('系统没有接受这个设置，可能没有权限')
     }
   } catch {
@@ -166,6 +181,12 @@ async function onAutoStartChange(value: boolean): Promise<void> {
   }
 }
 
+/**
+ * 改关闭行为（T10.1）
+ *
+ * 先改内存让用户立刻看到反馈，再落盘；主进程写失败也不会让界面跳回去 ——
+ * 偏好文件写不进去只是"下次启动不记得"，本次会话仍然按用户的选择走。
+ */
 async function onCloseActionChange(value: CloseAction): Promise<void> {
   closeAction.value = value
   try {
@@ -173,6 +194,10 @@ async function onCloseActionChange(value: CloseAction): Promise<void> {
   } catch {
     ElMessage.warning('设置没保存成功，这次生效、下次启动可能回到默认')
   }
+}
+
+function onCloseToTrayChange(value: string | number | boolean): void {
+  void onCloseActionChange(value === true ? 'tray' : 'quit')
 }
 
 /** 全量缓存（T10.3）：开弹框 → 让主进程按 5 并发下载 → 进度靠 IPC 推回来 */
@@ -335,7 +360,14 @@ const updateStatusText = computed<string>(() => {
   }
   if (state.phase === 'not-available') return '已是最新版本'
   if (state.phase === 'error') return `出错了：${state.error ?? '原因未知'}`
-  return state.checkedAt ? '点右边按钮检查一次' : '启动后会自动检查一次'
+  return state.checkedAt ? '启动后会自动检查一次，也可以现在检查' : '启动后会自动检查一次'
+})
+
+const updateMeta = computed(() => {
+  const checked = update.state.checkedAt
+    ? `上次检查 ${formatTime(update.state.checkedAt)}`
+    : '还没检查过'
+  return update.info?.size ? `${checked} · 安装包 ${sizeText(update.info.size)}` : checked
 })
 
 async function onCheckUpdate(): Promise<void> {
@@ -370,192 +402,138 @@ async function onInstallUpdate(): Promise<void> {
   <section class="settings">
     <h1 class="settings__title">系统设置</h1>
 
-    <!-- 主题 -->
-    <article class="card block">
-      <h2 class="block__title">主题</h2>
-      <p class="block__hint">切换立即生效，不需要重启。</p>
+    <!-- 外观 -->
+    <article class="card panel">
+      <h2 class="panel__title">外观</h2>
 
-      <el-radio-group :model-value="theme.mode" @change="onThemeChange">
-        <el-radio-button v-for="option in THEME_OPTIONS" :key="option.value" :value="option.value">
-          {{ option.label }}
-        </el-radio-button>
-      </el-radio-group>
-      <p class="block__hint">
-        {{ THEME_OPTIONS.find((item) => item.value === theme.mode)?.hint }}
-      </p>
-    </article>
-
-    <!-- 数据同步 -->
-    <article class="card block">
-      <h2 class="block__title">数据同步</h2>
-      <p class="block__hint">数据存在本地，断网也能查；这里只是主动拉一次最新的。</p>
-
-      <dl class="facts">
-        <div class="fact">
-          <dt>快照版本</dt>
-          <dd>{{ version ? `v${version}` : '—' }}</dd>
+      <div class="row">
+        <div class="row__text">
+          <p class="row__label">主题</p>
+          <p class="row__desc">切换立即生效，不用重启 · {{ themeHint }}</p>
         </div>
-        <div class="fact">
-          <dt>上次同步</dt>
-          <dd>{{ formatTime(lastSyncAt) }}</dd>
+        <div class="row__control">
+          <el-radio-group :model-value="theme.mode" @change="onThemeChange">
+            <el-radio-button
+              v-for="option in THEME_OPTIONS"
+              :key="option.value"
+              :value="option.value"
+            >
+              {{ option.label }}
+            </el-radio-button>
+          </el-radio-group>
         </div>
-        <div class="fact">
-          <dt>本地数据</dt>
-          <dd>{{ balls.length }} 条彩球 · {{ advanced.length }} 条进阶</dd>
-        </div>
-      </dl>
-
-      <div class="block__actions">
-        <el-button type="primary" :loading="syncingNow || syncing" @click="onSync">
-          立即同步
-        </el-button>
-        <span class="block__state">{{ syncStateText() }}</span>
-      </div>
-
-      <!-- 同步进度（T6.4）：快照走 RPC 拿不到 Content-Length，进度按阶段折算 -->
-      <el-progress
-        v-if="syncingNow || syncing"
-        class="block__progress"
-        :percentage="progress?.percent ?? 0"
-        :stroke-width="6"
-        :show-text="false"
-      />
-    </article>
-
-    <!-- 系统（T10.1，D36）：托盘与关闭行为 -->
-    <article v-if="prefsReady" class="card block">
-      <h2 class="block__title">系统</h2>
-      <p class="block__hint">关闭窗口时怎么办。</p>
-
-      <el-radio-group
-        :model-value="closeAction"
-        @change="(value: CloseAction) => onCloseActionChange(value)"
-      >
-        <el-radio-button v-for="option in CLOSE_OPTIONS" :key="option.value" :value="option.value">
-          {{ option.label }}
-        </el-radio-button>
-      </el-radio-group>
-      <p class="block__hint">
-        {{
-          closeAction === 'tray'
-            ? '关闭窗口后程序留在后台，点托盘图标就能叫回来；要彻底退出用托盘菜单里的「退出」。'
-            : '关闭窗口即结束程序，下次要重新打开。'
-        }}
-      </p>
-
-      <div class="block__row">
-        <span class="block__row-label">开机自动启动</span>
-        <el-switch
-          :model-value="autoStart"
-          :disabled="!autoStartSupported"
-          @change="onAutoStartChange"
-        />
-      </div>
-      <p class="block__hint">
-        {{
-          autoStartSupported
-            ? '开机时随 Windows 一起启动，启动后直接进托盘，不弹窗口。'
-            : '开发模式下不写系统启动项，装成安装包之后才会生效。'
-        }}
-      </p>
-    </article>
-
-    <!-- 资源缓存（T10.3）：图片默认按需下载，这里可以一次性全量缓存 -->
-    <article class="card block">
-      <h2 class="block__title">资源缓存</h2>
-      <p class="block__hint">图片默认是"看到哪张下哪张"。一次性全部缓存后，断网也能正常翻图。</p>
-
-      <dl class="facts">
-        <div class="fact">
-          <dt>本地已缓存</dt>
-          <dd>{{ cacheStats.files }} 张 · {{ sizeText(cacheStats.bytes) }}</dd>
-        </div>
-        <div class="fact">
-          <dt>可缓存图片</dt>
-          <dd>{{ uniqueImagePaths.length }} 张</dd>
-        </div>
-      </dl>
-
-      <div class="block__actions">
-        <el-button type="primary" :loading="prefetching" @click="onPrefetch">全量缓存</el-button>
-        <el-button :disabled="prefetching || cacheStats.files === 0" @click="onClearCache">
-          清空缓存
-        </el-button>
-        <span class="block__state">
-          {{
-            cacheStats.files >= uniqueImagePaths.length && uniqueImagePaths.length > 0
-              ? '本地已经齐了'
-              : '缓存过的图片下次打开不用再下载'
-          }}
-        </span>
       </div>
     </article>
 
-    <!-- 版本与关于 -->
-    <article class="card block">
-      <h2 class="block__title">版本与关于</h2>
+    <!-- 启动与关闭（T10.1 / T10.2，D36） -->
+    <article v-if="prefsReady" class="card panel">
+      <h2 class="panel__title">启动与关闭</h2>
 
-      <dl class="facts">
-        <div class="fact">
-          <dt>应用版本</dt>
-          <dd>{{ appInfo?.version ?? '—' }}</dd>
+      <div class="row">
+        <div class="row__text">
+          <p class="row__label">开机自动启动</p>
+          <p class="row__desc">
+            {{
+              autoStartSupported
+                ? '开机时随 Windows 一起启动，启动后直接进托盘，不弹窗口。'
+                : '仅安装版可设置；当前是开发模式，不会写系统启动项。'
+            }}
+          </p>
         </div>
-        <div class="fact">
-          <dt>Electron</dt>
-          <dd>{{ appInfo?.electron ?? '—' }}</dd>
+        <div class="row__control">
+          <el-switch
+            :model-value="autoStart"
+            :disabled="!autoStartSupported"
+            @change="onAutoStartChange"
+          />
         </div>
-        <div class="fact">
-          <dt>Chromium</dt>
-          <dd>{{ appInfo?.chrome ?? '—' }}</dd>
-        </div>
-        <div class="fact">
-          <dt>Node</dt>
-          <dd>{{ appInfo?.node ?? '—' }}</dd>
-        </div>
-      </dl>
+      </div>
 
-      <!-- 应用更新（U3）：非强制只在这里提示，不弹窗打扰 -->
-      <div class="update">
-        <div class="update__main">
-          <p class="update__title">应用更新</p>
-          <p class="update__state" :class="{ 'update__state--error': update.phase === 'error' }">
+      <div class="row">
+        <div class="row__text">
+          <p class="row__label">关闭窗口时缩到托盘</p>
+          <p class="row__desc">
+            {{
+              closeToTray
+                ? '关闭后程序留在后台，点托盘图标能叫回来；要彻底退出用托盘菜单的「退出」。'
+                : '关闭窗口即结束程序，下次要重新打开。'
+            }}
+          </p>
+        </div>
+        <div class="row__control">
+          <el-switch :model-value="closeToTray" @change="onCloseToTrayChange" />
+        </div>
+      </div>
+    </article>
+
+    <!-- 数据与缓存 -->
+    <article class="card panel">
+      <h2 class="panel__title">数据与缓存</h2>
+
+      <div class="row">
+        <div class="row__text">
+          <p class="row__label">数据同步</p>
+          <p class="row__desc">{{ syncSummary }} · {{ syncStateText() }}</p>
+          <!-- 快照走 RPC 拿不到 Content-Length，进度按阶段折算（T6.4） -->
+          <el-progress
+            v-if="syncingNow || syncing"
+            class="row__progress"
+            :percentage="progress?.percent ?? 0"
+            :stroke-width="6"
+            :show-text="false"
+          />
+        </div>
+        <div class="row__control">
+          <el-button type="primary" :loading="syncingNow || syncing" @click="onSync">
+            立即同步
+          </el-button>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="row__text">
+          <p class="row__label">图片缓存</p>
+          <p class="row__desc">
+            {{ cacheSummary }}。图片默认是看到哪张下哪张，全部缓存后断网也能翻图。
+          </p>
+        </div>
+        <div class="row__control">
+          <el-button :loading="prefetching" @click="onPrefetch">全量缓存</el-button>
+          <el-button :disabled="prefetching || cacheStats.files === 0" @click="onClearCache">
+            清空
+          </el-button>
+        </div>
+      </div>
+    </article>
+
+    <!-- 版本与更新 -->
+    <article class="card panel">
+      <h2 class="panel__title">版本与更新</h2>
+
+      <div class="row">
+        <div class="row__text">
+          <p class="row__label">应用更新</p>
+          <p class="row__desc" :class="{ 'row__desc--error': update.phase === 'error' }">
             {{ updateStatusText }}
           </p>
-          <!-- 下载中才显示进度：没在下载时摆一条 0% 的进度条只会让人以为卡住了 -->
           <el-progress
             v-if="update.phase === 'downloading'"
-            class="update__progress"
+            class="row__progress"
             :percentage="update.percent"
             :stroke-width="6"
           />
-          <p class="update__meta">
-            上次检查：{{ formatTime(update.state.checkedAt) }}
-            <template v-if="update.info?.size">
-              · 安装包 {{ sizeText(update.info.size) }}
-            </template>
-          </p>
+          <p class="row__meta">{{ updateMeta }}</p>
         </div>
-
-        <div class="update__actions">
-          <el-button
-            v-if="update.phase === 'downloaded'"
-            type="primary"
-            size="small"
-            @click="onInstallUpdate"
-          >
+        <div class="row__control">
+          <el-button v-if="update.phase === 'downloaded'" type="primary" @click="onInstallUpdate">
             重启并安装
           </el-button>
-          <el-button
-            v-else-if="update.phase === 'downloading'"
-            size="small"
-            @click="onCancelUpdate"
-          >
+          <el-button v-else-if="update.phase === 'downloading'" @click="onCancelUpdate">
             取消下载
           </el-button>
           <el-button
             v-else-if="update.phase === 'available'"
             type="primary"
-            size="small"
             :loading="update.busy"
             @click="onDownloadUpdate"
           >
@@ -563,7 +541,6 @@ async function onInstallUpdate(): Promise<void> {
           </el-button>
           <el-button
             v-else
-            size="small"
             :disabled="!update.canCheck"
             :loading="update.busy"
             @click="onCheckUpdate"
@@ -574,19 +551,25 @@ async function onInstallUpdate(): Promise<void> {
       </div>
 
       <!-- 日志（T6.2）：出问题时唯一需要看的东西 -->
-      <p class="log-line">
-        <span class="log-line__label">日志文件</span>
-        <span class="log-line__path" :title="logPath">{{ logPath || '还没有生成' }}</span>
-      </p>
-      <div class="block__actions">
-        <el-button size="small" :disabled="!logPath" @click="onOpenLog">打开日志文件夹</el-button>
-        <el-button size="small" :disabled="!logPath" @click="onCopyLogPath">复制路径</el-button>
-        <span class="block__state">程序出错时，把 main.log 发过来就能定位</span>
+      <div class="row">
+        <div class="row__text">
+          <p class="row__label">日志文件</p>
+          <p class="row__desc row__desc--path" :title="logPath">
+            {{ logPath || '还没有生成，程序运行后才会创建' }}
+          </p>
+        </div>
+        <div class="row__control">
+          <el-button :disabled="!logPath" @click="onOpenLog">打开文件夹</el-button>
+          <el-button :disabled="!logPath" @click="onCopyLogPath">复制路径</el-button>
+        </div>
       </div>
 
-      <p class="about">
-        作者：酸菜黄花鱼 · 联系方式 QQ 78260590<br />
-        本程序用于学习斯诺克走位技巧，仅供内部交流使用。
+      <p class="panel__foot">
+        版本 {{ appInfo?.version ?? '—' }} · Electron {{ appInfo?.electron ?? '—' }} · Chromium
+        {{ appInfo?.chrome ?? '—' }} · Node {{ appInfo?.node ?? '—' }}
+      </p>
+      <p class="panel__foot panel__foot--about">
+        作者：酸菜黄花鱼 · 联系方式 QQ 78260590 · 本程序用于学习斯诺克走位，仅供内部交流。
       </p>
     </article>
 
@@ -634,100 +617,57 @@ async function onInstallUpdate(): Promise<void> {
   color: var(--text-1);
 }
 
-.block {
+.panel {
   padding: clamp(1rem, 1.8vw, 1.5rem);
 }
 
-.block__title {
-  margin: 0;
-  font-size: var(--font-size-lg);
+.panel__title {
+  margin: 0 0 0.25rem;
+  font-size: var(--font-size-base);
   font-weight: 500;
-  color: var(--text-1);
-}
-
-.block__hint {
-  margin: 0.375rem 0 0;
-  font-size: var(--font-size-sm);
-  line-height: 1.8;
-  color: var(--text-3);
-}
-
-.facts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-  gap: 0.75rem 1.5rem;
-  margin: 1rem 0 0;
-}
-
-.fact {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-}
-
-.fact dt {
-  font-size: var(--font-size-sm);
-  color: var(--text-3);
-}
-
-.fact dd {
-  margin: 0;
-  font-size: var(--font-size-sm);
-  font-variant-numeric: tabular-nums;
-  color: var(--text-1);
-}
-
-.block__actions {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
-  margin-top: 1rem;
-}
-
-.block__state {
-  font-size: var(--font-size-sm);
   color: var(--text-2);
 }
 
-.block__progress {
-  margin-top: 0.75rem;
-}
+/* ---------- 设置行：左说明 + 右控件，只用分隔线，不加背景 ---------- */
 
-/* 开关行：左边说明、右边开关，与上面的单选分组共用卡片布局 */
-.block__row {
+.row {
   display: flex;
-  gap: 0.75rem;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
   align-items: center;
   justify-content: space-between;
-  margin-top: 0.875rem;
-  padding: 0.5rem 0.625rem;
-  background: var(--surface-2);
-  border-radius: var(--radius-sm);
+  padding: 0.875rem 0;
 }
 
-.block__row-label {
-  font-size: var(--font-size-sm);
-  color: var(--text-1);
+.row + .row {
+  border-top: 1px solid var(--border);
 }
 
-/* 日志路径可能很长：单行省略，完整路径放 title，需要时点「复制路径」 */
-.log-line {
-  display: flex;
-  gap: 0.5rem;
-  align-items: baseline;
-  margin: 1rem 0 0;
-  font-size: var(--font-size-sm);
+.row__text {
+  flex: 1 1 18rem;
   min-width: 0;
 }
 
-.log-line__label {
-  flex: 0 0 auto;
-  color: var(--text-3);
+.row__label {
+  margin: 0;
+  font-size: var(--font-size-base);
+  color: var(--text-1);
 }
 
-.log-line__path {
-  overflow: hidden;
+.row__desc {
+  margin: 0.25rem 0 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.7;
   color: var(--text-2);
+}
+
+.row__desc--error {
+  color: var(--danger);
+}
+
+/* 日志路径可能很长：单行省略，完整路径放 title，需要时点「复制路径」 */
+.row__desc--path {
+  overflow: hidden;
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -735,69 +675,46 @@ async function onInstallUpdate(): Promise<void> {
   user-select: text;
 }
 
-.about {
-  margin: 1rem 0 0;
-  font-size: var(--font-size-sm);
-  line-height: 2;
-  color: var(--text-2);
-}
-
-/* 更新行：左侧状态、右侧按钮。窄窗口时按钮换到下一行，不挤成一团 */
-.update {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 1rem;
-  padding: 0.75rem 0.875rem;
-  background: var(--surface-2);
-  border-radius: var(--radius-sm);
-}
-
-.update__main {
-  flex: 1 1 16rem;
-  min-width: 0;
-}
-
-.update__title {
-  margin: 0;
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  color: var(--text-1);
-}
-
-.update__state {
+.row__meta {
   margin: 0.125rem 0 0;
-  font-size: var(--font-size-sm);
-  color: var(--text-2);
-  /* 错误信息可能很长（HTML 错误页），最多两行 */
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-}
-
-.update__state--error {
-  color: var(--danger);
-}
-
-.update__progress {
-  margin-top: 0.5rem;
-}
-
-.update__meta {
-  margin: 0.25rem 0 0;
   font-size: var(--font-size-sm);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
 
-.update__actions {
-  flex: 0 0 auto;
+.row__progress {
+  margin-top: 0.5rem;
 }
 
-/* 缓存进度弹框的两行说明 */
+.row__control {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* ---------- 卡片底部：版本号与作者信息 ---------- */
+
+.panel__foot {
+  margin: 0.75rem 0 0;
+  padding-top: 0.75rem;
+  font-size: var(--font-size-sm);
+  color: var(--text-3);
+  border-top: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+
+.panel__foot--about {
+  margin-top: 0.375rem;
+  padding-top: 0;
+  border-top: 0;
+  line-height: 1.9;
+}
+
+/* ---------- 缓存进度弹框 ---------- */
+
 .prefetch__line {
   margin: 0.75rem 0 0;
   font-size: var(--font-size-sm);

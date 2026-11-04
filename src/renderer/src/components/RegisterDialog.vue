@@ -14,6 +14,7 @@ import { reactive, ref, watch } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { Check, Close, Loading } from '@element-plus/icons-vue'
 import CaptchaCode from '@renderer/components/CaptchaCode.vue'
+import EmailInput from '@renderer/components/EmailInput.vue'
 import { GENDER_LABELS, type Gender } from '@renderer/assets/avatars'
 import { useAuthStore, useNetworkStore } from '@renderer/stores'
 import { explainSignUpFailure, INVITE_REASON_TEXT, validateInviteCode } from '@shared/api/invite'
@@ -239,7 +240,7 @@ async function submit(): Promise<void> {
       </el-form-item>
 
       <el-form-item label="邮箱" prop="email">
-        <el-input v-model="model.email" placeholder="name@example.com" autocomplete="username" />
+        <EmailInput v-model="model.email" />
       </el-form-item>
 
       <el-form-item label="昵称" prop="nickname">
