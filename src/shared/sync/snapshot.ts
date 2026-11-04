@@ -44,6 +44,13 @@ export interface SyncProgress {
   stage: SyncStage
   /** 可直接展示的中文文案 */
   message: string
+  /**
+   * 0–100 的粗粒度进度
+   *
+   * 快照走 `supabase.rpc()`（POST），拿不到 `Content-Length`，所以没有真实百分比，
+   * 只能按阶段折算。**只用于进度条的长度**，不要拿它做"还剩几秒"的估算。
+   */
+  percent: number
 }
 
 export type SyncStatus =
@@ -126,7 +133,9 @@ async function fetchRemoteSnapshot(): Promise<DatasetSnapshot> {
  * 这里保留一个本地别名只是为了让下面两处调用读起来顺。
  */
 function describeError(error: unknown): string {
-  if (isNetworkError(error)) return '连不上服务器，先用本地数据'
+  // 这里只描述"发生了什么"，不加"先用本地数据"之类的建议 ——
+  // 首次运行没有本地数据时那句话是错的，建议由界面按场景给（T6.4 DataGate）
+  if (isNetworkError(error)) return '连不上服务器'
   if (error && typeof error === 'object' && 'message' in error) {
     return String((error as { message: unknown }).message)
   }
@@ -147,13 +156,14 @@ export interface SyncOptions {
  */
 export async function syncDataset(options: SyncOptions = {}): Promise<SyncResult> {
   const { force = false, onProgress } = options
-  const report = (stage: SyncStage, message: string): void => onProgress?.({ stage, message })
+  const report = (stage: SyncStage, message: string, percent: number): void =>
+    onProgress?.({ stage, message, percent })
 
   const local = await readLocalDataset()
   const localVersion = local?.version ?? null
 
   // ── 1. 比对版本 ──
-  report('checking', '检查数据版本…')
+  report('checking', '检查数据版本…', 15)
   let remoteVersion: number
   try {
     remoteVersion = await fetchRemoteVersion()
@@ -166,12 +176,16 @@ export async function syncDataset(options: SyncOptions = {}): Promise<SyncResult
   }
 
   if (!force && local && local.version === remoteVersion) {
-    report('done', '已是最新')
+    report('done', '已是最新', 100)
     return { status: 'up-to-date', version: localVersion }
   }
 
   // ── 2. 下载全量 ──
-  report('downloading', localVersion === null ? '首次同步，正在下载数据…' : '发现新版本，正在下载…')
+  report(
+    'downloading',
+    localVersion === null ? '首次同步，正在下载数据…' : '发现新版本，正在下载…',
+    70
+  )
   let snapshot: DatasetSnapshot
   try {
     snapshot = await fetchRemoteSnapshot()
@@ -185,14 +199,14 @@ export async function syncDataset(options: SyncOptions = {}): Promise<SyncResult
   }
 
   // ── 3. 落盘（原子替换） ──
-  report('saving', '正在写入本地缓存…')
+  report('saving', '正在写入本地缓存…', 90)
   try {
     await writeCache(CACHE_NAMES.dataset, snapshot)
   } catch (error) {
     return { status: 'error', version: localVersion, message: describeError(error) }
   }
 
-  report('done', '数据已更新')
+  report('done', '数据已更新', 100)
   return { status: 'updated', version: snapshot.version }
 }
 

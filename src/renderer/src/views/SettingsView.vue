@@ -106,7 +106,9 @@ function formatTime(raw: number | null): string {
 
 /** 同步状态 → 一句人话 */
 function syncStateText(): string {
-  if (syncingNow.value) return progress.value?.message ?? '同步中…'
+  // `syncing` 也要算：启动时 dataset.init() 会自己同步一次，
+  // 那时候 syncingNow（只代表本页手动点过按钮）还是 false
+  if (syncingNow.value || syncing.value) return progress.value?.message ?? '同步中…'
   switch (syncState.value) {
     case 'updated':
       return '已更新到最新'
@@ -409,6 +411,15 @@ async function onInstallUpdate(): Promise<void> {
         </el-button>
         <span class="block__state">{{ syncStateText() }}</span>
       </div>
+
+      <!-- 同步进度（T6.4）：快照走 RPC 拿不到 Content-Length，进度按阶段折算 -->
+      <el-progress
+        v-if="syncingNow || syncing"
+        class="block__progress"
+        :percentage="progress?.percent ?? 0"
+        :stroke-width="6"
+        :show-text="false"
+      />
     </article>
 
     <!-- 系统（T10.1，D36）：托盘与关闭行为 -->
@@ -676,6 +687,10 @@ async function onInstallUpdate(): Promise<void> {
 .block__state {
   font-size: var(--font-size-sm);
   color: var(--text-2);
+}
+
+.block__progress {
+  margin-top: 0.75rem;
 }
 
 /* 开关行：左边说明、右边开关，与上面的单选分组共用卡片布局 */

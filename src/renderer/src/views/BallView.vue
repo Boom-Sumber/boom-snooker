@@ -14,6 +14,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import BallCard from '@renderer/components/BallCard.vue'
 import BallFormDialog from '@renderer/components/BallFormDialog.vue'
+import DataGate from '@renderer/components/DataGate.vue'
 import { BALL_LABELS } from '@renderer/navigation/menu'
 import { useAuthStore, useDatasetStore, useNetworkStore, type Ball } from '@renderer/stores'
 import { deleteBall } from '@shared/api/balls'
@@ -205,15 +206,21 @@ async function onSaved(): Promise<void> {
     <header class="ball-view__head">
       <div>
         <h1 class="ball-view__title">{{ title }}</h1>
-        <p class="ball-view__sub">共 {{ colorBalls.length }} 条打法 · 按袋口与进袋方式筛选</p>
+        <p class="ball-view__sub">
+          {{
+            dataset.isReady
+              ? `共 ${colorBalls.length} 条打法 · 按袋口与进袋方式筛选`
+              : '正在准备本地数据'
+          }}
+        </p>
       </div>
       <el-button v-if="auth.canWrite" type="primary" :disabled="network.offline" @click="onCreate">
         新增
       </el-button>
     </header>
 
-    <!-- 筛选区 -->
-    <div class="filter card">
+    <!-- 筛选区：数据没到就先不显示，空的下拉和单选对用户没有意义（T6.4） -->
+    <div v-if="dataset.isReady" class="filter card">
       <el-radio-group v-model="pocket" class="filter__pockets" @change="onPocketChange">
         <el-radio-button v-for="item in pockets" :key="item.code" :value="item.code">
           {{ item.name }}
@@ -240,10 +247,7 @@ async function onSaved(): Promise<void> {
     </div>
 
     <!-- 结果区 -->
-    <div v-if="!dataset.isReady" class="state">
-      <el-skeleton :rows="3" animated />
-      <p class="state__text">数据还没同步完成，稍等一下…</p>
-    </div>
+    <DataGate v-if="!dataset.isReady" />
 
     <p v-else-if="!submitted" class="state__text state__text--center">选择进袋方式后点「查询」</p>
 

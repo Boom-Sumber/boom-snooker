@@ -21,6 +21,7 @@ import { ElImageViewer, ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeftBold } from '@element-plus/icons-vue'
 import BallFormDialog from '@renderer/components/BallFormDialog.vue'
 import CommentSection from '@renderer/components/CommentSection.vue'
+import DataGate from '@renderer/components/DataGate.vue'
 import { BALL_LABELS } from '@renderer/navigation/menu'
 import { useAuthStore, useDatasetStore, useNetworkStore, type Ball } from '@renderer/stores'
 import { imageUrl } from '@shared/media/url'
@@ -273,9 +274,11 @@ async function onSaved(): Promise<void> {
       </div>
     </header>
 
-    <div v-if="!dataset.isReady || extraLoading" class="state">
+    <!-- 快照没到：交给 DataGate 解释原因；快照到了但这条记录还在单独拉，才用骨架 -->
+    <DataGate v-if="!dataset.isReady" />
+    <div v-else-if="extraLoading" class="state">
       <el-skeleton :rows="5" animated />
-      <p class="state__text">数据还没同步完成，稍等一下…</p>
+      <p class="state__text">正在读取这条打法…</p>
     </div>
 
     <el-empty v-else-if="!ball" :description="reviewError || '这条打法不存在，或已被作者删除'">

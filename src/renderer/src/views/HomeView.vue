@@ -14,6 +14,7 @@
  */
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
+import DataGate from '@renderer/components/DataGate.vue'
 import { HOME_SECTIONS } from '@renderer/content/home'
 import { useDatasetStore } from '@renderer/stores'
 
@@ -63,7 +64,10 @@ const stats = computed(() => [
 
 <template>
   <section class="home">
-    <header class="card hero">
+    <!-- 首次运行（没有本地数据）：整块换成引导 + 同步进度，而不是一排「—」（T6.4） -->
+    <DataGate v-if="!dataset.isReady" variant="home" class="card" />
+
+    <header v-else class="card hero">
       <h1 class="hero__title">斯诺克走位教学</h1>
       <p class="hero__sub">
         彩球打法与进阶系列，按颜色、袋口、系列索引；数据存在本地，断网也能查。

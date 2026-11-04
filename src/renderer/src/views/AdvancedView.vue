@@ -13,6 +13,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AdvancedCard from '@renderer/components/AdvancedCard.vue'
 import AdvancedFormDialog from '@renderer/components/AdvancedFormDialog.vue'
+import DataGate from '@renderer/components/DataGate.vue'
 import { CATEGORY_LABELS } from '@renderer/navigation/menu'
 import { useAuthStore, useDatasetStore, useNetworkStore, type Advanced } from '@renderer/stores'
 import { deleteAdvanced } from '@shared/api/advanced'
@@ -116,7 +117,9 @@ watch(
     <header class="advanced-view__head">
       <div>
         <h1 class="advanced-view__title">{{ title }}</h1>
-        <p class="advanced-view__sub">共 {{ items.length }} 条 · 点卡片查看完整内容</p>
+        <p class="advanced-view__sub">
+          {{ dataset.isReady ? `共 ${items.length} 条 · 点卡片查看完整内容` : '正在准备本地数据' }}
+        </p>
       </div>
       <el-button v-if="auth.canWrite" type="primary" :disabled="network.offline" @click="onCreate">
         新增
@@ -124,7 +127,7 @@ watch(
     </header>
 
     <!-- 系列切换：与侧栏 5 项同一个路由参数，两边始终同步 -->
-    <div class="filter card">
+    <div v-if="dataset.isReady" class="filter card">
       <el-radio-group :model-value="category" class="filter__categories" @change="onCategoryChange">
         <el-radio-button v-for="item in categories" :key="item.code" :value="item.code">
           {{ item.name }}
@@ -133,10 +136,7 @@ watch(
       </el-radio-group>
     </div>
 
-    <div v-if="!dataset.isReady" class="state">
-      <el-skeleton :rows="3" animated />
-      <p class="state__text">数据还没同步完成，稍等一下…</p>
-    </div>
+    <DataGate v-if="!dataset.isReady" />
 
     <p v-else-if="items.length === 0" class="state__text state__text--center">这个系列还没有内容</p>
 
