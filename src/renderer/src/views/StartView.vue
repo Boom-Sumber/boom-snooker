@@ -5,34 +5,68 @@
  * 结构：整屏渐变背景 + 居中的标题 / 诗句 / 开始按钮。
  * 独立于 MainLayout（不在侧栏里），对应旧版 WPF 的 Splash。
  *
- * 两个关键行为：
+ * 三个关键行为：
  *   1. **先渲染兜底句子，再异步换真句**：接口 4 秒超时，期间界面是完整的，
  *      不会出现「空白等接口」的观感
  *   2. **淡出后跳转**：先加 `--leaving` 类跑 360ms 过渡，再 `router.replace`，
  *      否则页面会「啪」地切走
+ *   3. **自动进入**（2026-11-04）：停留 N 秒（设置页可调，默认 10、最少 5）后
+ *      自己进主页，按钮仍可提前点。秒数与诗句类别都记在本机偏好里
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { fetchPoem, pickFallbackPoem, type Poem } from '@renderer/services/poem'
+import { START_PAGE_DEFAULT_SECONDS, type AppPreferences } from '@shared/types/system'
 
 const router = useRouter()
 
 const poem = ref<Poem>(pickFallbackPoem())
 const leaving = ref(false)
+/** 自动进入倒计时；0 = 不计时（点按钮才走） */
+const remaining = ref(0)
 /** 组件已卸载就不再改状态（接口回来时用户可能已经点走了） */
 let disposed = false
+let ticker: number | undefined
+
+function stopTicker(): void {
+  if (ticker !== undefined) {
+    window.clearInterval(ticker)
+    ticker = undefined
+  }
+}
+
+function startCountdown(total: number): void {
+  if (!Number.isFinite(total) || total <= 0 || disposed) return
+  remaining.value = total
+  ticker = window.setInterval(() => {
+    remaining.value -= 1
+    if (remaining.value <= 0) {
+      stopTicker()
+      remaining.value = 0
+      start()
+    }
+  }, 1000)
+}
 
 onMounted(async () => {
-  const remote = await fetchPoem()
+  // 偏好读不到（老版本主进程 / IPC 没起来）就按默认值走，不能卡在启动页
+  const prefs: AppPreferences | null = await window.api.system.prefs().catch(() => null)
+
+  const categories = prefs?.startPage.poemCategories ?? []
+  const remote = await fetchPoem(categories)
   if (!disposed && remote) poem.value = remote
+
+  startCountdown(prefs?.startPage.autoEnterSeconds ?? START_PAGE_DEFAULT_SECONDS)
 })
 
 onBeforeUnmount(() => {
   disposed = true
+  stopTicker()
 })
 
 function start(): void {
   if (leaving.value) return
+  stopTicker()
   leaving.value = true
   // 与 CSS 的 .start--leaving 过渡时长保持一致
   window.setTimeout(() => {
@@ -56,6 +90,8 @@ function start(): void {
       </blockquote>
 
       <button class="start__button" type="button" @click="start">开始</button>
+      <!-- 自动进入的倒计时：让"页面自己会走"这件事可见，不然用户会以为卡住了 -->
+      <p v-if="remaining > 0" class="start__countdown">{{ remaining }} 秒后自动进入主页</p>
     </div>
   </div>
 </template>
@@ -192,5 +228,14 @@ function start(): void {
 .start__button:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 3px;
+}
+
+/* 倒计时：比按钮弱一档，别抢主体 */
+.start__countdown {
+  margin: 0.375rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
 }
 </style>

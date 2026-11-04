@@ -11,6 +11,23 @@ export type CloseAction =
   /** 直接退出程序 */
   | 'quit'
 
+/** 启动页自动进入主页的秒数下限（用户可调，但不能低于它） */
+export const START_PAGE_MIN_SECONDS = 5
+/** 默认停留 10 秒 */
+export const START_PAGE_DEFAULT_SECONDS = 10
+/** 上限：再长就失去"启动页"的意义了 */
+export const START_PAGE_MAX_SECONDS = 60
+
+/** 启动页偏好（2026-11-04） */
+export interface StartPagePreferences {
+  /** 启动时是否显示启动页；关掉则直接进主页 */
+  enabled: boolean
+  /** 停留多少秒后自动进主页（点「开始」可提前进入） */
+  autoEnterSeconds: number
+  /** 诗句类别 code（见 `services/poemLibrary.ts`）；空数组 = 不限，走在线推荐 */
+  poemCategories: string[]
+}
+
 export interface AppPreferences {
   /** 关闭窗口时怎么办 */
   closeAction: CloseAction
@@ -22,6 +39,8 @@ export interface AppPreferences {
    * 只提示一次：天天弹就成了骚扰。
    */
   trayHintShown: boolean
+  /** 启动页（显示与否 / 自动进入秒数 / 诗句类别） */
+  startPage: StartPagePreferences
 }
 
 export interface AutoStartState {

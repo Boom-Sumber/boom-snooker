@@ -13,7 +13,7 @@ import { countUnreadNotifications } from '@shared/api/notifications'
 import { iconSize, type IconName } from '@renderer/icons'
 import { ROLE_LABELS } from '@renderer/navigation/menu'
 import { resolveAvatar } from '@renderer/assets/avatars'
-import { useAuthStore, useDatasetStore, useThemeStore } from '@renderer/stores'
+import { useAuthStore, useThemeStore } from '@renderer/stores'
 import WindowControls from './WindowControls.vue'
 
 defineProps<{ collapsed: boolean }>()
@@ -146,25 +146,6 @@ watch(
     void refreshPending()
   }
 )
-
-/** 手动同步：强制重下全量快照（T2.4） */
-const dataset = useDatasetStore()
-
-async function onRefresh(): Promise<void> {
-  const status = await dataset.sync(true)
-  const text: Record<string, string> = {
-    updated: '数据已更新',
-    'up-to-date': '已是最新版本',
-    offline: '连不上服务器，继续使用本地数据',
-    error: dataset.lastError || '同步失败'
-  }
-  const message = text[status] ?? '同步完成'
-  if (status === 'updated' || status === 'up-to-date') {
-    ElMessage.success(message)
-  } else {
-    ElMessage.warning(message)
-  }
-}
 </script>
 
 <template>
@@ -223,8 +204,6 @@ async function onRefresh(): Promise<void> {
     </div>
 
     <div class="topbar__right no-drag">
-      <el-button @click="onRefresh">数据更新</el-button>
-
       <!-- 铃铛与主题按钮共用 .icon-btn：同样的 2rem 方形盒，垂直对齐才一致 -->
       <button
         class="icon-btn"

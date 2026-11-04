@@ -148,6 +148,24 @@ export const router = createRouter({
 })
 
 /**
+ * 启动页开关（2026-11-04）
+ *
+ * 「启动时显示启动页」关掉时直接进主页。放在**路由层**而不是 StartView 里判断：
+ * 守卫在渲染之前就跑完，页面连一帧都不会闪；写在组件里会有一次视觉跳变。
+ *
+ * 读不到偏好（IPC 没起来 / 老版本主进程）就按"显示"处理，保持原有行为。
+ */
+router.beforeEach(async (to) => {
+  if (to.name !== 'start') return true
+  try {
+    const prefs = await window.api.system.prefs()
+    return prefs.startPage.enabled ? true : { name: 'home' }
+  } catch {
+    return true
+  }
+})
+
+/**
  * 路由级权限守卫（D28）
  *
  * 菜单按角色过滤只是"看不见"；直接改 hash 仍能打开页面，所以这里再挡一道。

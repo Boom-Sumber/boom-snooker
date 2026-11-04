@@ -23,26 +23,71 @@ import {
 } from 'node:fs'
 import { join } from 'node:path'
 import { mainLog } from './log'
-import type { AppPreferences } from '@shared/types/system'
+import {
+  START_PAGE_DEFAULT_SECONDS,
+  START_PAGE_MAX_SECONDS,
+  START_PAGE_MIN_SECONDS,
+  type AppPreferences,
+  type StartPagePreferences
+} from '@shared/types/system'
 
 /** 默认最小化到托盘：教学工具属于"随时查一眼"，关一次就退出太打断 */
 const DEFAULTS: AppPreferences = {
   closeAction: 'tray',
   openAtLogin: false,
-  trayHintShown: false
+  trayHintShown: false,
+  startPage: {
+    enabled: true,
+    autoEnterSeconds: START_PAGE_DEFAULT_SECONDS,
+    poemCategories: []
+  }
 }
 
 const FILE_NAME = 'app-settings.json'
 
 /** 内存里的当前值：改设置立刻生效，写盘失败也不影响本次会话 */
-let current: AppPreferences = { ...DEFAULTS }
+let current: AppPreferences = clone(DEFAULTS)
+
+function clone(value: AppPreferences): AppPreferences {
+  return {
+    ...value,
+    startPage: { ...value.startPage, poemCategories: [...value.startPage.poemCategories] }
+  }
+}
+
+/**
+ * 校验外部传进来的启动页偏好
+ *
+ * JSON 可能被手改过，秒数也可能超出范围 —— 一律夹到 [5, 60]，
+ * 类别去重后只保留字符串（真正的类别表在渲染层，主进程不认识它的含义，
+ * 不认识就照样存着，渲染层自己会过滤）。
+ */
+function normalizeStartPage(raw: unknown, fallback: StartPagePreferences): StartPagePreferences {
+  if (typeof raw !== 'object' || raw === null) return { ...fallback }
+  const value = raw as Partial<StartPagePreferences>
+
+  const seconds = Number(value.autoEnterSeconds)
+  const autoEnterSeconds = Number.isFinite(seconds)
+    ? Math.min(START_PAGE_MAX_SECONDS, Math.max(START_PAGE_MIN_SECONDS, Math.round(seconds)))
+    : fallback.autoEnterSeconds
+
+  const categories = Array.isArray(value.poemCategories)
+    ? [...new Set(value.poemCategories.filter((code): code is string => typeof code === 'string'))]
+    : fallback.poemCategories
+
+  return {
+    enabled: typeof value.enabled === 'boolean' ? value.enabled : fallback.enabled,
+    autoEnterSeconds,
+    poemCategories: categories
+  }
+}
 
 function preferencesFile(): string {
   return join(app.getPath('userData'), FILE_NAME)
 }
 
 export function getPreferences(): AppPreferences {
-  return { ...current }
+  return clone(current)
 }
 
 /** 启动时读一次（在 `app.whenReady()` 之后调用，`userData` 才确定） */
@@ -56,11 +101,12 @@ export function initPreferences(): void {
           ? parsed.closeAction
           : DEFAULTS.closeAction,
       openAtLogin: typeof parsed.openAtLogin === 'boolean' ? parsed.openAtLogin : false,
-      trayHintShown: typeof parsed.trayHintShown === 'boolean' ? parsed.trayHintShown : false
+      trayHintShown: typeof parsed.trayHintShown === 'boolean' ? parsed.trayHintShown : false,
+      startPage: normalizeStartPage(parsed.startPage, DEFAULTS.startPage)
     }
   } catch {
     // 没有这个文件（首次启动）/ 内容坏了：都用默认值，不阻塞启动
-    current = { ...DEFAULTS }
+    current = clone(DEFAULTS)
   }
 }
 
@@ -73,12 +119,16 @@ export function updatePreferences(patch: Partial<AppPreferences>): AppPreference
         : current.closeAction,
     openAtLogin: typeof patch.openAtLogin === 'boolean' ? patch.openAtLogin : current.openAtLogin,
     trayHintShown:
-      typeof patch.trayHintShown === 'boolean' ? patch.trayHintShown : current.trayHintShown
+      typeof patch.trayHintShown === 'boolean' ? patch.trayHintShown : current.trayHintShown,
+    // 启动页是嵌套对象：渲染层每次传完整的一份，这里再按字段兜一次
+    startPage: patch.startPage
+      ? normalizeStartPage(patch.startPage, current.startPage)
+      : current.startPage
   }
 
   current = next
   writeAtomic(preferencesFile(), JSON.stringify(next, null, 2))
-  return { ...next }
+  return clone(next)
 }
 
 function writeAtomic(file: string, content: string): void {

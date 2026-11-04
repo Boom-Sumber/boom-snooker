@@ -9,9 +9,14 @@
  *   2. **超时 4 秒**：这个接口在国外，慢的时候能拖十几秒；启动页不值得等。
  *   3. **兜底句子写在本地**：不依赖任何网络，也不依赖接口格式不变。
  *
+ * 类别（2026-11-04）：在线接口不支持按类别取句，选了类别就用本地句库
+ * （见 `poemLibrary.ts`）。不选类别才走在线推荐。
+ *
  * ⚠️ CSP：`index.html` 的 `connect-src` 必须包含 `https://v1.jinrishici.com`，
  * 否则请求会被静默拦掉（控制台只有一条 CSP 报错，fetch 直接 reject）。
  */
+import { poemsOf } from './poemLibrary'
+
 export interface Poem {
   content: string
   author: string
@@ -21,19 +26,10 @@ export interface Poem {
 const ENDPOINT = 'https://v1.jinrishici.com/all.json'
 const TIMEOUT_MS = 4000
 
-/** 兜底句子：接口失败 / 超时 / 返回格式变了都用这些 */
-const FALLBACK_POEMS: readonly Poem[] = [
-  { content: '莫愁前路无知己，天下谁人不识君。', author: '高适', origin: '别董大' },
-  { content: '长风破浪会有时，直挂云帆济沧海。', author: '李白', origin: '行路难' },
-  { content: '千磨万击还坚劲，任尔东西南北风。', author: '郑燮', origin: '竹石' },
-  { content: '纸上得来终觉浅，绝知此事要躬行。', author: '陆游', origin: '冬夜读书示子聿' },
-  { content: '博观而约取，厚积而薄发。', author: '苏轼', origin: '稼说送张琥' },
-  { content: '不积跬步，无以至千里。', author: '荀子', origin: '劝学' }
-]
-
-/** 随机取一句兜底（每次启动略有变化，不至于每次看到同一句） */
-export function pickFallbackPoem(): Poem {
-  return FALLBACK_POEMS[Math.floor(Math.random() * FALLBACK_POEMS.length)]
+/** 随机取一句本地句子（可按类别过滤；不传就是全库） */
+export function pickFallbackPoem(categories: readonly string[] = []): Poem {
+  const pool = poemsOf(categories)
+  return pool[Math.floor(Math.random() * pool.length)]
 }
 
 function isPoem(value: unknown): value is Poem {
@@ -50,9 +46,14 @@ function isPoem(value: unknown): value is Poem {
 /**
  * 拉一句诗；失败返回 null（调用方保留兜底句子）
  *
+ * `categories` 非空时直接用本地句库 —— 在线接口没有分类能力，
+ * 硬拉一句不相关的回来反而是错的行为。
+ *
  * 注意：不做重试。启动页多等 4 秒已经是上限，重试只会更慢。
  */
-export async function fetchPoem(): Promise<Poem | null> {
+export async function fetchPoem(categories: readonly string[] = []): Promise<Poem | null> {
+  if (categories.length > 0) return pickFallbackPoem(categories)
+
   try {
     const response = await fetch(ENDPOINT, {
       signal: AbortSignal.timeout(TIMEOUT_MS),

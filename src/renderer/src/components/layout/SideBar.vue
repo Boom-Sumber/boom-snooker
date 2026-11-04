@@ -235,9 +235,14 @@ const update = useUpdateStore()
           <el-icon :size="'1.25rem'">
             <component :is="EP_ICONS[pinnedNavItem.epIcon]" />
           </el-icon>
-          <span v-if="update.hasUpdate" class="pinned__dot" aria-hidden="true" />
+          <!-- 折叠态没有文字的位置，退回一个小红点 -->
+          <span v-if="collapsed && update.hasUpdate" class="pinned__dot" aria-hidden="true" />
         </span>
-        <span v-if="!collapsed" class="pinned__label">{{ pinnedNavItem.label }}</span>
+        <span v-if="!collapsed" class="pinned__label">
+          <span class="pinned__text">{{ pinnedNavItem.label }}</span>
+          <!-- 有新版本：文字后面挂一个胶囊，比原来右上角的小红点显眼 -->
+          <span v-if="update.hasUpdate" class="pinned__badge">有新版本</span>
+        </span>
       </RouterLink>
     </div>
   </aside>
@@ -325,10 +330,15 @@ const update = useUpdateStore()
   padding-inline: 0.5rem;
 }
 
-/* 与一级菜单同构：同样的三列布局、高度、圆角、hover，只是少了展开箭头 */
+/*
+ * 吸底项（系统设置）
+ *
+ * 高度、圆角、hover 与一级菜单一致，**但文字单独居中**（用户要求）：
+ * 一级菜单是「图标 + 文字」左对齐，这里用三列网格（左右各让出一个图标宽），
+ * 中间那列的文字才真正落在卡片中轴上。
+ */
 .pinned {
   display: grid;
-  /* 图标列 / 文字列 / 等宽空列：两边对称，文字落在卡片中轴（见 .group__header） */
   grid-template-columns: 1.25rem 1fr 1.25rem;
   align-items: center;
   padding: 0.5rem 0.625rem;
@@ -373,11 +383,36 @@ const update = useUpdateStore()
 }
 
 .pinned__label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
   min-width: 0;
-  overflow: hidden;
-  text-align: center;
   white-space: nowrap;
+}
+
+.pinned__text {
+  overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/*
+ * 「有新版本」胶囊
+ *
+ * 用警告色，但不能直接用 --warning 当前景色 —— 亮色主题下它是 #e9af20，
+ * 压在白色侧栏上对比度太低。混一点正文色（亮色下是深、暗色下是浅），
+ * 两种主题各自都能读清。
+ */
+.pinned__badge {
+  flex: 0 0 auto;
+  padding: 0 0.375rem;
+  font-size: 0.6875rem;
+  line-height: 1.6;
+  color: color-mix(in srgb, var(--warning) 55%, var(--text-1));
+  /* 底色混侧栏本身而不是透明：这一行可能是选中态（橘色底），透明会串色 */
+  background: color-mix(in srgb, var(--warning) 18%, var(--sidebar-bg));
+  border: 1px solid color-mix(in srgb, var(--warning) 42%, transparent);
+  border-radius: 999px;
 }
 
 /*
@@ -412,15 +447,8 @@ const update = useUpdateStore()
 
 .group__header {
   position: relative;
-  display: grid;
-  /*
-   * 图标列 / 文字列 / 等宽空列
-   *
-   * 用户反馈：标题比二级菜单「靠左」。二级菜单是整行居中，而一级菜单是
-   * 「图标 + 文字」从左往右排，文字必然右移。这里让左右两列等宽（1.25rem），
-   * 中间那列的文字才是真正落在卡片中轴上（左右各让出同样的图标宽度）。
-   */
-  grid-template-columns: 1.25rem 1fr 1.25rem;
+  display: flex;
+  gap: 0.875rem;
   align-items: center;
   padding: 0.5rem 0.625rem;
   font-family: inherit;
@@ -464,9 +492,7 @@ const update = useUpdateStore()
 }
 
 .group__label {
-  min-width: 0;
   overflow: hidden;
-  text-align: center;
   white-space: nowrap;
   text-overflow: ellipsis;
 }

@@ -14,8 +14,15 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { storeToRefs } from 'pinia'
 import { useDatasetStore, useThemeStore, useUpdateStore } from '@renderer/stores'
+import { POEM_CATEGORIES } from '@renderer/services/poemLibrary'
 import type { AppInfo } from '@shared/types/app'
-import type { CloseAction } from '@shared/types/system'
+import {
+  START_PAGE_DEFAULT_SECONDS,
+  START_PAGE_MAX_SECONDS,
+  START_PAGE_MIN_SECONDS,
+  type CloseAction,
+  type StartPagePreferences
+} from '@shared/types/system'
 import type { MediaCacheStats, PrefetchProgress } from '@shared/types/media'
 import type { ThemeMode } from '@shared/types/theme'
 
@@ -32,6 +39,13 @@ const logPath = ref('')
 /** 本机偏好（T10.1）：关闭窗口是缩到托盘还是直接退出 */
 const closeAction = ref<CloseAction>('tray')
 const prefsReady = ref(false)
+
+/** 启动页偏好（2026-11-04）：显示与否 / 自动进入秒数 / 诗句类别 */
+const startPage = ref<StartPagePreferences>({
+  enabled: true,
+  autoEnterSeconds: START_PAGE_DEFAULT_SECONDS,
+  poemCategories: []
+})
 
 /** 开机自启（T10.2）：状态以系统返回为准；dev 下不支持，开关置灰 */
 const autoStart = ref(false)
@@ -200,6 +214,39 @@ function onCloseToTrayChange(value: string | number | boolean): void {
   void onCloseActionChange(value === true ? 'tray' : 'quit')
 }
 
+/**
+ * 存启动页偏好
+ *
+ * 主进程会再夹一次范围（5~60 秒），这里夹只是为了让界面立刻显示合法值；
+ * 每次提交完整对象 —— 嵌套字段用 patch 合并容易漏项。
+ */
+async function saveStartPage(patch: Partial<StartPagePreferences>): Promise<void> {
+  const next: StartPagePreferences = { ...startPage.value, ...patch }
+  startPage.value = next
+  try {
+    await window.api.system.setPrefs({ startPage: next })
+  } catch {
+    ElMessage.warning('设置没保存成功，这次生效、下次启动可能回到默认')
+  }
+}
+
+function onStartPageToggle(value: string | number | boolean): void {
+  void saveStartPage({ enabled: value === true })
+}
+
+function onAutoEnterChange(value: number | undefined): void {
+  if (typeof value !== 'number' || Number.isNaN(value)) return
+  const clamped = Math.min(
+    START_PAGE_MAX_SECONDS,
+    Math.max(START_PAGE_MIN_SECONDS, Math.round(value))
+  )
+  void saveStartPage({ autoEnterSeconds: clamped })
+}
+
+function onCategoriesChange(value: string[]): void {
+  void saveStartPage({ poemCategories: [...value] })
+}
+
 /** 全量缓存（T10.3）：开弹框 → 让主进程按 5 并发下载 → 进度靠 IPC 推回来 */
 async function onPrefetch(): Promise<void> {
   if (prefetching.value) return
@@ -287,6 +334,7 @@ onMounted(async () => {
   try {
     const prefs = await window.api.system.prefs()
     closeAction.value = prefs.closeAction
+    startPage.value = { ...prefs.startPage, poemCategories: [...prefs.startPage.poemCategories] }
     prefsReady.value = true
   } catch {
     // 拿不到偏好（老版本主进程 / IPC 没起来）：保持默认，不显示这块，免得误导
@@ -421,6 +469,72 @@ async function onInstallUpdate(): Promise<void> {
               {{ option.label }}
             </el-radio-button>
           </el-radio-group>
+        </div>
+      </div>
+    </article>
+
+    <!-- 启动页（2026-11-04）：显示与否 / 自动进入秒数 / 诗句类别 -->
+    <article v-if="prefsReady" class="card panel">
+      <h2 class="panel__title">启动页</h2>
+
+      <div class="row">
+        <div class="row__text">
+          <p class="row__label">启动时显示启动页</p>
+          <p class="row__desc">关掉后打开程序直接进主页，不再停留在标题与诗句那一屏。</p>
+        </div>
+        <div class="row__control">
+          <el-switch :model-value="startPage.enabled" @change="onStartPageToggle" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="row__text">
+          <p class="row__label">自动进入主页</p>
+          <p class="row__desc">
+            启动页停留这么久后自己进主页（最少 5 秒）；想早点进去点「开始」即可。
+          </p>
+        </div>
+        <div class="row__control">
+          <el-input-number
+            class="seconds-input"
+            :model-value="startPage.autoEnterSeconds"
+            :min="START_PAGE_MIN_SECONDS"
+            :max="START_PAGE_MAX_SECONDS"
+            :step="1"
+            step-strictly
+            controls-position="right"
+            :disabled="!startPage.enabled"
+            @change="onAutoEnterChange"
+          />
+          <span class="row__unit">秒</span>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="row__text">
+          <p class="row__label">诗句类别</p>
+          <p class="row__desc">
+            可以多选。不选 = 在线随机推荐；选了就从本地句库里挑，断网也能正常显示。
+          </p>
+        </div>
+        <div class="row__control">
+          <el-select
+            class="category-select"
+            :model-value="startPage.poemCategories"
+            multiple
+            collapse-tags
+            collapse-tags-tooltip
+            placeholder="不限（在线推荐）"
+            :disabled="!startPage.enabled"
+            @change="onCategoriesChange"
+          >
+            <el-option
+              v-for="category in POEM_CATEGORIES"
+              :key="category.code"
+              :label="category.label"
+              :value="category.code"
+            />
+          </el-select>
         </div>
       </div>
     </article>
@@ -693,6 +807,20 @@ async function onInstallUpdate(): Promise<void> {
   gap: 0.5rem;
   align-items: center;
   justify-content: flex-end;
+}
+
+/* 秒数输入与类别下拉：固定一个不随窗口乱跳的宽度 */
+.seconds-input {
+  width: 7.5rem;
+}
+
+.row__unit {
+  font-size: var(--font-size-sm);
+  color: var(--text-2);
+}
+
+.category-select {
+  width: 16rem;
 }
 
 /* ---------- 卡片底部：版本号与作者信息 ---------- */
