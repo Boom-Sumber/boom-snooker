@@ -12,7 +12,7 @@
  *
  * dev 下 `phase` 恒为 `unsupported`，`mandatory` 也永远是 false，所以这个弹窗在开发时看不到。
  */
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useUpdateStore } from '@renderer/stores'
 
@@ -23,6 +23,52 @@ const phase = computed(() => update.phase)
 const info = computed(() => update.info)
 const percent = computed(() => update.percent)
 const progress = computed(() => update.progress)
+
+/**
+ * 下载完成后自动重启的倒计时（2026-11-04）
+ *
+ * 强制更新的语义是"不更新就别用"，下载完了还让用户去找按钮没有意义 ——
+ * 10 秒后自己装。留这 10 秒是给"正在看图 / 正在输入"的人一点反应时间：
+ * 想立刻装就点按钮，不想等就关掉窗口（= 退出程序）。
+ */
+const AUTO_INSTALL_SECONDS = 10
+const remaining = ref(0)
+let ticker: number | undefined
+
+function stopTicker(): void {
+  if (ticker !== undefined) {
+    window.clearInterval(ticker)
+    ticker = undefined
+  }
+}
+
+function startTicker(): void {
+  if (ticker !== undefined) return
+  remaining.value = AUTO_INSTALL_SECONDS
+  ticker = window.setInterval(() => {
+    remaining.value -= 1
+    if (remaining.value <= 0) {
+      remaining.value = 0
+      stopTicker()
+      void onInstall()
+    }
+  }, 1000)
+}
+
+// 只有"弹窗开着 + 已经下载完"才倒计时；其它任何状态都要停掉
+watch(
+  [visible, phase],
+  ([isVisible, currentPhase]) => {
+    if (isVisible && currentPhase === 'downloaded') startTicker()
+    else {
+      stopTicker()
+      remaining.value = 0
+    }
+  },
+  { immediate: true }
+)
+
+onBeforeUnmount(stopTicker)
 
 /** 下载速度：主进程给的是字节/秒，超过 1 MB/s 就换单位，免得显示一串数字 */
 const speedText = computed(() => {
@@ -118,6 +164,9 @@ function onCloseForced(): void {
       <p v-else-if="phase === 'downloaded'" class="update__ready">
         安装包已下载完成（{{ sizeText }}），重启后会自动安装，不需要再点下一步。
       </p>
+      <p v-if="phase === 'downloaded' && remaining > 0" class="update__countdown">
+        {{ remaining }} 秒后自动重启安装…
+      </p>
 
       <el-alert v-else-if="phase === 'error'" :closable="false" type="error" show-icon>
         <template #title>下载失败</template>
@@ -178,5 +227,12 @@ function onCloseForced(): void {
 .update__ready {
   margin: 0.75rem 0 0;
   color: var(--success);
+}
+
+/* 倒计时：比正文弱一档，别让人以为是个可点的东西 */
+.update__countdown {
+  margin: 0.375rem 0 0;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
 }
 </style>

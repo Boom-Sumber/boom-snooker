@@ -296,24 +296,32 @@ GH_REPO=Boom-Sumber/boom-snooker
 GH_MIRROR=https://v4.gh-proxy.org/     # 见 4.4，留空 = GitHub 直连
 ```
 
-### 4.2 每次发版（五步）
+### 4.2 每次发版（一条命令）
 
 ```bash
-npm version patch --no-git-tag-version                                  # ① 改版本号，如 0.1.4 → 0.1.5
-npm run build                                                          # ② 类型检查 + 构建
-npx electron-builder --win -c.electronDist=node_modules/electron/dist  # ③ 出安装包（绕法见 3.2）
-node scripts/publish-release.mjs --notes "修复 XX" --min 0.1.4         # ④ 发布（--min 见 4.3）
-git add -A && git commit -m "chore: release v0.1.5" && git push        # ⑤ 版本号入库
+npm run release:full -- 0.2.2 --min 0.2.2 --notes "改了什么"
 ```
 
-脚本会依次做：预检版本号 → 建/复用 `v<version>` release → 上传 exe + blockmap →
-改写 `latest.yml` 的 `files[].url` 为绝对地址 → 传清单和策略到 Storage →
-用 service_role 写 `app_releases` → **自检公开地址返回的版本号**。
+这条命令等价于原来的五步，并且顺序固定：
 
-只有最后打印 `✓ 发布完成` 才算成功。
+1. 改 `package.json` 的 `version`，同步把 `src/shared/version.ts` 的 `MIN_SUPPORTED_VERSION` 设成 `--min`
+2. `npm run build`（含 typecheck）
+3. `electron-builder --win -c.electronDist=node_modules/electron/dist`（绕 EPERM，见 3.2）
+4. `node scripts/publish-release.mjs --min <min>`：建/复用 `v<version>` release → 上传 exe + blockmap →
+   改写 `latest.yml` 的 `files[].url` → 传清单与策略到 Storage → 写 `app_releases` → **自检公开地址**
+5. `git add -A && git commit -m "chore: release vX" && git push`
 
-> 第 ⑤ 步不能漏：版本号进了 `package.json` 才算发布完成的一半，否则下一个人 `git pull` 后本地版本号和线上不一致。
-> 脚本本身不校验工作区，所以也可以先提交再执行第 ④ 步。
+只有第 4 步打印 `✓ 发布完成` 才算发出去。第 5 步失败（网络/代理）**不影响已发布的版本**，
+脚本只警告，记得下次先 `git push`。
+
+其它开关：
+
+| 参数 | 用途 |
+|---|---|
+| `--min 0.2.1` | 普通修复版：只强制 0.2.1 以下（不传 = 等于本版，所有旧版强制升级） |
+| `--notes "..."` | 写进 GitHub Release 说明和 `app_releases.notes` |
+| `--no-git` | 不改/不提交 git，自己手动提交 |
+| `--dry-run` | 只打印计划，不执行 |
 
 ### 4.3 `--min` 的语义（最容易搞错）
 
