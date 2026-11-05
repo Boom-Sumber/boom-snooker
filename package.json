@@ -1,6 +1,6 @@
 {
   "name": "snooker",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "2D 斯诺克走位教学工具（Windows 桌面端）",
   "main": "./out/main/index.js",
   "author": "Boom-Sumber",

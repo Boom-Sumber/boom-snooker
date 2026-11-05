@@ -37,6 +37,10 @@ const sheetOpen = ref(false)
 /** 自动进入倒计时；0 = 不计时（手动模式或已停） */
 const remaining = ref(0)
 const manualEnter = ref(false)
+/** 正在换一首：把诗句压暗、按钮禁用，避免连点 */
+const loading = ref(false)
+/** 用户选的体裁，换一首时要复用 */
+const categories = ref<string[]>([])
 
 let disposed = false
 let ticker: number | undefined
@@ -87,25 +91,56 @@ onMounted(async () => {
   const startPage = prefs?.startPage
   manualEnter.value = startPage?.manualEnter === true
 
-  const categories = startPage?.poemCategories ?? []
+  const selected = startPage?.poemCategories ?? []
+  categories.value = selected
 
   // 首选内容是按"不限"随机拿的；用户要是选了体裁，换成对应类别的
-  if (categories.length > 0) {
-    const allowed = categories
+  if (selected.length > 0) {
+    const allowed = selected
       .map((code) => categoryByCode(code)?.apiType)
       .filter((label): label is string => Boolean(label))
-    if (!allowed.includes(poem.value.type)) poem.value = pickCachedPoem(categories)
+    if (!allowed.includes(poem.value.type)) poem.value = pickCachedPoem(selected)
   }
 
   // 先看看有没有上次在线取到的（断网/限流时比内置缓存更"新"）
-  const last = recallPoem(categories)
+  const last = recallPoem(selected)
   if (last) poem.value = last
 
-  const remote = await fetchPoem(categories)
+  const remote = await fetchPoem(selected)
   if (!disposed && remote) poem.value = remote
 
   startCountdown(startPage?.autoEnterSeconds ?? START_PAGE_DEFAULT_SECONDS)
 })
+
+/**
+ * 换一首（2026-11-05）
+ *
+ * 先试在线；拿不到就从本地缓存里换一首**不同的**（缓存每个体裁只有 3 首，
+ * 直接随机很容易抽到同一首，看起来像"没反应"）。
+ */
+async function nextPoem(): Promise<void> {
+  if (loading.value || leaving.value) return
+  loading.value = true
+  try {
+    const remote = await fetchPoem(categories.value)
+    if (remote) {
+      poem.value = remote
+      return
+    }
+
+    const current = `${poem.value.title}|${poem.value.author}`
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const candidate = pickCachedPoem(categories.value)
+      if (`${candidate.title}|${candidate.author}` !== current) {
+        poem.value = candidate
+        return
+      }
+    }
+    // 缓存里只有一首时换不动，保持原样即可
+  } finally {
+    loading.value = false
+  }
+}
 
 onBeforeUnmount(() => {
   disposed = true
@@ -137,12 +172,16 @@ function start(): void {
 
       <!-- 诗笺卡：宽度跟着内容走，最多 4 行，超出给「全诗」 -->
       <figure class="poem">
-        <div class="poem__card">
+        <div class="poem__card" :class="{ 'is-loading': loading }">
           <ul class="poem__lines">
             <li v-for="(line, index) in previewLines" :key="index">{{ line }}</li>
           </ul>
           <button v-if="hasMore" class="poem__more" type="button" @click="sheetOpen = true">
             全诗 {{ sentenceCount }} 句 <span aria-hidden="true">▾</span>
+          </button>
+          <!-- 右下角：换一首 -->
+          <button class="poem__next" type="button" :disabled="loading" @click="nextPoem">
+            换一首
           </button>
         </div>
         <figcaption class="poem__byline">{{ byline }}</figcaption>
@@ -165,6 +204,9 @@ function start(): void {
           <li v-for="(line, index) in poem.content" :key="index">{{ line }}</li>
         </ul>
         <div class="sheet__actions">
+          <button class="sheet__btn" type="button" :disabled="loading" @click="nextPoem">
+            换一首
+          </button>
           <button class="sheet__btn" type="button" @click="sheetOpen = false">合上</button>
         </div>
       </div>
@@ -294,7 +336,8 @@ function start(): void {
 .poem__card {
   position: relative;
   width: 100%;
-  padding: 1.75rem 2.75rem;
+  /* 底部多留一档：右下角要放「换一首」，不挤到诗句 */
+  padding: 1.75rem 2.75rem 2.875rem;
   background: color-mix(in srgb, var(--surface) 56%, transparent);
   border: 1px solid color-mix(in srgb, var(--surface) 72%, transparent);
   border-radius: 16px;
@@ -303,6 +346,12 @@ function start(): void {
     inset 0 1px 0 rgb(255 255 255 / 60%);
   backdrop-filter: blur(22px) saturate(150%);
   -webkit-backdrop-filter: blur(22px) saturate(150%);
+  transition: opacity 0.2s ease;
+}
+
+/* 换一首进行中：诗句压暗，避免看起来"没反应" */
+.poem__card.is-loading .poem__lines {
+  opacity: 0.35;
 }
 
 .poem__lines {
@@ -312,6 +361,7 @@ function start(): void {
   margin: 0;
   padding: 0;
   list-style: none;
+  transition: opacity 0.2s ease;
 }
 
 .poem__lines li {
@@ -344,6 +394,35 @@ function start(): void {
   color: var(--primary);
   background: color-mix(in srgb, var(--primary) 7%, transparent);
   border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+}
+
+/* 右下角「换一首」：无边框、比正文弱一档，不抢诗句 */
+.poem__next {
+  position: absolute;
+  right: 1rem;
+  bottom: 0.75rem;
+  padding: 0.1875rem 0.5rem;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--text-3);
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  transition:
+    color var(--transition-fast),
+    background-color var(--transition-fast);
+}
+
+.poem__next:hover:not(:disabled) {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 7%, transparent);
+}
+
+.poem__next:disabled,
+.sheet__btn:disabled {
+  cursor: default;
+  opacity: 0.5;
 }
 
 /* 署名靠右，与卡片右边缘严格对齐；超长标题在卡片宽度内省略 */
@@ -476,6 +555,7 @@ function start(): void {
 .sheet__actions {
   display: flex;
   flex: 0 0 auto;
+  gap: 0.5rem;
   justify-content: center;
   margin-top: 1.25rem;
 }
