@@ -2,7 +2,7 @@ import { app } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { registerAppInfoIpc } from './appInfo'
 import { registerAuthIpc } from './auth'
-import { isHiddenLaunch, registerAutoStartIpc } from './autostart'
+import { isHiddenLaunch, registerAutoStartIpc, resetAutoStartOnFirstRun } from './autostart'
 import { initLogging, mainLog, registerLogIpc } from './log'
 import { registerMediaIpc, registerMediaProtocol } from './media'
 import { initPreferences, registerPreferencesIpc } from './preferences'
@@ -30,7 +30,9 @@ if (!gotSingleInstanceLock) {
     electronApp.setAppUserModelId('com.boom.snooker')
 
     // 偏好先读：窗口的 close 行为要用到它（必须在建窗口之前）
-    initPreferences()
+    const firstRun = initPreferences()
+    // 开机自启默认关闭：首次启动顺手清掉可能残留的启动项
+    resetAutoStartOnFirstRun(firstRun)
 
     // 主题必须在建窗口之前定下来，否则首帧会闪一下
     initTheme()

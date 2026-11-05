@@ -18,13 +18,20 @@ export const START_PAGE_DEFAULT_SECONDS = 10
 /** 上限：再长就失去"启动页"的意义了 */
 export const START_PAGE_MAX_SECONDS = 60
 
-/** 启动页偏好（2026-11-04） */
+/** 启动页偏好（2026-11-05：加"手动进入"） */
 export interface StartPagePreferences {
   /** 启动时是否显示启动页；关掉则直接进主页 */
   enabled: boolean
-  /** 停留多少秒后自动进主页（点「开始」可提前进入） */
+  /**
+   * 是否必须手动点「开始」才进主页
+   *
+   * 关（默认）= 显示倒计时，读秒结束自动进主页；
+   * 开 = 不显示倒计时、不自动跳转，只能点按钮（此时秒数设置无意义）。
+   */
+  manualEnter: boolean
+  /** 停留多少秒后自动进主页（manualEnter 为 true 时不用） */
   autoEnterSeconds: number
-  /** 诗句类别 code（见 `services/poemLibrary.ts`）；空数组 = 不限，走在线推荐 */
+  /** 诗句类别 code（见 `services/poemLibrary.ts`）；空数组 = 不限 */
   poemCategories: string[]
 }
 

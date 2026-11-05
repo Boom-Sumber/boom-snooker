@@ -40,9 +40,10 @@ const logPath = ref('')
 const closeAction = ref<CloseAction>('tray')
 const prefsReady = ref(false)
 
-/** 启动页偏好（2026-11-04）：显示与否 / 自动进入秒数 / 诗句类别 */
+/** 启动页偏好（2026-11-05：显示与否 / 手动进入 / 自动进入秒数 / 诗句类别） */
 const startPage = ref<StartPagePreferences>({
   enabled: true,
+  manualEnter: false,
   autoEnterSeconds: START_PAGE_DEFAULT_SECONDS,
   poemCategories: []
 })
@@ -187,11 +188,13 @@ async function onAutoStartChange(value: string | number | boolean): Promise<void
     const state = await window.api.system.autostart.set(value === true)
     autoStart.value = state.enabled
     autoStartSupported.value = state.supported
+    // 系统没接受（权限/策略）：开关要弹回去，不能显示一个假的成功
     if (state.enabled !== (value === true)) {
-      ElMessage.warning('系统没有接受这个设置，可能没有权限')
+      autoStart.value = state.enabled
+      ElMessage.error('设置保存失败')
     }
   } catch {
-    ElMessage.error('设置开机自启动失败')
+    ElMessage.error('设置保存失败')
   }
 }
 
@@ -206,7 +209,7 @@ async function onCloseActionChange(value: CloseAction): Promise<void> {
   try {
     await window.api.system.setPrefs({ closeAction: value })
   } catch {
-    ElMessage.warning('设置没保存成功，这次生效、下次启动可能回到默认')
+    ElMessage.error('设置保存失败')
   }
 }
 
@@ -217,21 +220,34 @@ function onCloseToTrayChange(value: string | number | boolean): void {
 /**
  * 存启动页偏好
  *
- * 主进程会再夹一次范围（5~60 秒），这里夹只是为了让界面立刻显示合法值；
- * 每次提交完整对象 —— 嵌套字段用 patch 合并容易漏项。
+ * ⚠️ 2026-11-05 修 bug：原来写的是 `{ ...startPage.value, ...patch }`，
+ * 浅拷贝会把 ref 里的 **reactive 数组代理**原样塞进 IPC 参数，
+ * 结构化克隆失败（`An object could not be cloned`）→ 所有启动页设置都存不进去。
+ * 现在显式拆成基本值 + 新数组，保证是可克隆的普通对象。
+ *
+ * 主进程会再夹一次范围（5~60 秒），这里夹只是为了让界面立刻显示合法值。
  */
 async function saveStartPage(patch: Partial<StartPagePreferences>): Promise<void> {
-  const next: StartPagePreferences = { ...startPage.value, ...patch }
+  const next: StartPagePreferences = {
+    enabled: patch.enabled ?? startPage.value.enabled,
+    manualEnter: patch.manualEnter ?? startPage.value.manualEnter,
+    autoEnterSeconds: patch.autoEnterSeconds ?? startPage.value.autoEnterSeconds,
+    poemCategories: [...(patch.poemCategories ?? startPage.value.poemCategories)]
+  }
   startPage.value = next
   try {
     await window.api.system.setPrefs({ startPage: next })
   } catch {
-    ElMessage.warning('设置没保存成功，这次生效、下次启动可能回到默认')
+    ElMessage.error('设置保存失败')
   }
 }
 
 function onStartPageToggle(value: string | number | boolean): void {
   void saveStartPage({ enabled: value === true })
+}
+
+function onManualEnterToggle(value: string | number | boolean): void {
+  void saveStartPage({ manualEnter: value === true })
 }
 
 function onAutoEnterChange(value: number | undefined): void {
@@ -334,7 +350,25 @@ onMounted(async () => {
   try {
     const prefs = await window.api.system.prefs()
     closeAction.value = prefs.closeAction
-    startPage.value = { ...prefs.startPage, poemCategories: [...prefs.startPage.poemCategories] }
+    startPage.value = {
+      enabled: prefs.startPage.enabled !== false,
+      manualEnter: prefs.startPage.manualEnter === true,
+      autoEnterSeconds: prefs.startPage.autoEnterSeconds,
+      // 旧版本存的是另一套类别 code（tangshi / lizhi / chuci…），
+      // 换数据源后这些 code 已经不存在，留着会让下拉框显示一堆无效值
+      poemCategories: prefs.startPage.poemCategories.filter((code) =>
+        POEM_CATEGORIES.some((item) => item.code === code)
+      )
+    }
+    // 上一步过滤掉的就顺手写回去，别每次都过滤一遍
+    if (startPage.value.poemCategories.length !== prefs.startPage.poemCategories.length) {
+      void window.api.system.setPrefs({
+        startPage: {
+          ...startPage.value,
+          poemCategories: [...startPage.value.poemCategories]
+        }
+      })
+    }
     prefsReady.value = true
   } catch {
     // 拿不到偏好（老版本主进程 / IPC 没起来）：保持默认，不显示这块，免得误导
@@ -473,7 +507,7 @@ async function onInstallUpdate(): Promise<void> {
       </div>
     </article>
 
-    <!-- 启动页（2026-11-04）：显示与否 / 自动进入秒数 / 诗句类别 -->
+    <!-- 启动页（2026-11-05）：显示与否 / 手动进入 / 自动进入秒数 / 诗句类别 -->
     <article v-if="prefsReady" class="card panel">
       <h2 class="panel__title">启动页</h2>
 
@@ -489,9 +523,29 @@ async function onInstallUpdate(): Promise<void> {
 
       <div class="row">
         <div class="row__text">
-          <p class="row__label">自动进入主页</p>
+          <p class="row__label">手动进入主页</p>
           <p class="row__desc">
-            启动页停留这么久后自己进主页（最少 5 秒）；想早点进去点「开始」即可。
+            开启后不显示倒计时，必须自己点「开始」；关闭则读秒结束自动进主页。
+          </p>
+        </div>
+        <div class="row__control">
+          <el-switch
+            :model-value="startPage.manualEnter"
+            :disabled="!startPage.enabled"
+            @change="onManualEnterToggle"
+          />
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="row__text">
+          <p class="row__label">自动进入倒计时</p>
+          <p class="row__desc">
+            {{
+              startPage.manualEnter
+                ? '手动进入模式不需要倒计时。'
+                : '启动页停留这么久后自己进主页（最少 5 秒）；想早点进去点「开始」即可。'
+            }}
           </p>
         </div>
         <div class="row__control">
@@ -503,7 +557,7 @@ async function onInstallUpdate(): Promise<void> {
             :step="1"
             step-strictly
             controls-position="right"
-            :disabled="!startPage.enabled"
+            :disabled="!startPage.enabled || startPage.manualEnter"
             @change="onAutoEnterChange"
           />
           <span class="row__unit">秒</span>
@@ -514,7 +568,7 @@ async function onInstallUpdate(): Promise<void> {
         <div class="row__text">
           <p class="row__label">诗句类别</p>
           <p class="row__desc">
-            可以多选。不选 = 在线随机推荐；选了就从本地句库里挑，断网也能正常显示。
+            可以多选。不选 = 不限（在线随机）；选了就按这些体裁取诗，断网时用本地缓存。
           </p>
         </div>
         <div class="row__control">
@@ -524,7 +578,7 @@ async function onInstallUpdate(): Promise<void> {
             multiple
             collapse-tags
             collapse-tags-tooltip
-            placeholder="不限（在线推荐）"
+            placeholder="不限（在线随机）"
             :disabled="!startPage.enabled"
             @change="onCategoriesChange"
           >

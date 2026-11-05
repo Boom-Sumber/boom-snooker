@@ -1,32 +1,58 @@
 <script setup lang="ts">
 /**
- * 启动页
+ * 启动页（2026-11-05 改版：诗笺卡 + 全诗浮层）
  *
- * 结构：整屏渐变背景 + 居中的标题 / 诗句 / 开始按钮。
+ * 结构：整屏渐变 + 居中标题 / 诗笺卡 / 开始按钮。
  * 独立于 MainLayout（不在侧栏里），对应旧版 WPF 的 Splash。
  *
- * 三个关键行为：
- *   1. **先渲染兜底句子，再异步换真句**：接口 4 秒超时，期间界面是完整的，
- *      不会出现「空白等接口」的观感
- *   2. **淡出后跳转**：先加 `--leaving` 类跑 360ms 过渡，再 `router.replace`，
- *      否则页面会「啪」地切走
- *   3. **自动进入**（2026-11-04）：停留 N 秒（设置页可调，默认 10、最少 5）后
- *      自己进主页，按钮仍可提前点。秒数与诗句类别都记在本机偏好里
+ * 四个关键行为：
+ *   1. **本地先出内容，在线再替换**：进页面立刻用本地缓存渲染，接口回来再换；
+ *      拿不到（断网 / 限流）就一直是本地那首，白屏是不会发生的
+ *   2. **一句一行、首页最多 4 行**：接口的 content 一项是「一联」或「一个句群」，
+ *      直接按项渲染，超出的收进「全诗」浮层
+ *   3. **自动进入可关**：`manualEnter = true` 时不显示倒计时、不自动跳，只能点按钮；
+ *      打开全诗浮层时倒计时暂停（正在读诗不该被跳走）
+ *   4. **淡出后跳转**：先加 `--leaving` 跑 360ms 过渡，再 `router.replace`
  */
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { fetchPoem, pickFallbackPoem, type Poem } from '@renderer/services/poem'
+import {
+  fetchPoem,
+  pickCachedPoem,
+  recallPoem,
+  splitSentences,
+  type Poem
+} from '@renderer/services/poem'
+import { categoryByCode } from '@renderer/services/poemLibrary'
 import { START_PAGE_DEFAULT_SECONDS, type AppPreferences } from '@shared/types/system'
 
 const router = useRouter()
 
-const poem = ref<Poem>(pickFallbackPoem())
+/** 首页最多显示几行（一项=一联/一句群） */
+const PREVIEW_LINES = 4
+
+const poem = ref<Poem>(pickCachedPoem())
 const leaving = ref(false)
-/** 自动进入倒计时；0 = 不计时（点按钮才走） */
+const sheetOpen = ref(false)
+/** 自动进入倒计时；0 = 不计时（手动模式或已停） */
 const remaining = ref(0)
-/** 组件已卸载就不再改状态（接口回来时用户可能已经点走了） */
+const manualEnter = ref(false)
+
 let disposed = false
 let ticker: number | undefined
+
+const previewLines = computed(() => poem.value.content.slice(0, PREVIEW_LINES))
+const hasMore = computed(() => poem.value.content.length > PREVIEW_LINES)
+const sentenceCount = computed(() => splitSentences(poem.value.content).length)
+const byline = computed(() => {
+  const parts = [poem.value.dynasty, poem.value.author].filter(Boolean)
+  return `—— ${parts.join(' · ')}《${poem.value.title}》`
+})
+const sheetMeta = computed(() => {
+  const parts = [poem.value.dynasty, poem.value.author, poem.value.type].filter(Boolean)
+  return `${parts.join(' · ')} · 共 ${sentenceCount.value} 句`
+})
+const showCountdown = computed(() => !manualEnter.value && remaining.value > 0)
 
 function stopTicker(): void {
   if (ticker !== undefined) {
@@ -36,7 +62,8 @@ function stopTicker(): void {
 }
 
 function startCountdown(total: number): void {
-  if (!Number.isFinite(total) || total <= 0 || disposed) return
+  stopTicker()
+  if (manualEnter.value || !Number.isFinite(total) || total <= 0 || disposed) return
   remaining.value = total
   ticker = window.setInterval(() => {
     remaining.value -= 1
@@ -48,15 +75,36 @@ function startCountdown(total: number): void {
   }, 1000)
 }
 
+/** 浮层开着 = 暂停读秒（合上后从剩下的秒数继续） */
+watch(sheetOpen, (open) => {
+  if (open) stopTicker()
+  else if (remaining.value > 0) startCountdown(remaining.value)
+})
+
 onMounted(async () => {
   // 偏好读不到（老版本主进程 / IPC 没起来）就按默认值走，不能卡在启动页
   const prefs: AppPreferences | null = await window.api.system.prefs().catch(() => null)
+  const startPage = prefs?.startPage
+  manualEnter.value = startPage?.manualEnter === true
 
-  const categories = prefs?.startPage.poemCategories ?? []
+  const categories = startPage?.poemCategories ?? []
+
+  // 首选内容是按"不限"随机拿的；用户要是选了体裁，换成对应类别的
+  if (categories.length > 0) {
+    const allowed = categories
+      .map((code) => categoryByCode(code)?.apiType)
+      .filter((label): label is string => Boolean(label))
+    if (!allowed.includes(poem.value.type)) poem.value = pickCachedPoem(categories)
+  }
+
+  // 先看看有没有上次在线取到的（断网/限流时比内置缓存更"新"）
+  const last = recallPoem(categories)
+  if (last) poem.value = last
+
   const remote = await fetchPoem(categories)
   if (!disposed && remote) poem.value = remote
 
-  startCountdown(prefs?.startPage.autoEnterSeconds ?? START_PAGE_DEFAULT_SECONDS)
+  startCountdown(startPage?.autoEnterSeconds ?? START_PAGE_DEFAULT_SECONDS)
 })
 
 onBeforeUnmount(() => {
@@ -77,23 +125,51 @@ function start(): void {
 
 <template>
   <div class="start" :class="{ 'start--leaving': leaving }">
+    <!-- 背景上的两团柔光：卡片是毛玻璃，得有东西可"糊" -->
     <div class="start__glow" aria-hidden="true"></div>
+    <div class="start__blob start__blob--a" aria-hidden="true"></div>
+    <div class="start__blob start__blob--b" aria-hidden="true"></div>
 
     <div class="start__inner">
       <p class="start__eyebrow">2D SNOOKER</p>
       <h1 class="start__title">斯诺克走位教学</h1>
       <p class="start__subtitle">彩球 · 袋口 · 进袋方式 —— 一条一条讲清楚</p>
 
-      <blockquote class="start__poem">
-        <p class="start__line">{{ poem.content }}</p>
-        <footer class="start__meta">—— {{ poem.author }}《{{ poem.origin }}》</footer>
-      </blockquote>
+      <!-- 诗笺卡：宽度跟着内容走，最多 4 行，超出给「全诗」 -->
+      <figure class="poem">
+        <div class="poem__card">
+          <ul class="poem__lines">
+            <li v-for="(line, index) in previewLines" :key="index">{{ line }}</li>
+          </ul>
+          <button v-if="hasMore" class="poem__more" type="button" @click="sheetOpen = true">
+            全诗 {{ sentenceCount }} 句 <span aria-hidden="true">▾</span>
+          </button>
+        </div>
+        <figcaption class="poem__byline">{{ byline }}</figcaption>
+      </figure>
 
       <button class="start__button" type="button" @click="start">开始</button>
-      <!-- 自动进入的倒计时：让"页面自己会走"这件事可见，不然用户会以为卡住了 -->
-      <p v-if="remaining > 0" class="start__countdown">{{ remaining }} 秒后自动进入主页</p>
+      <p v-if="showCountdown" class="start__countdown">{{ remaining }} 秒后自动进入主页</p>
+      <p v-else-if="manualEnter" class="start__countdown">看完点「开始」进入主页</p>
     </div>
   </div>
+
+  <!-- 全诗浮层：标题在上方居中 -->
+  <transition name="sheet">
+    <div v-if="sheetOpen" class="sheet-mask" @click.self="sheetOpen = false">
+      <div class="sheet" role="dialog" aria-modal="true">
+        <h2 class="sheet__title">《{{ poem.title }}》</h2>
+        <p class="sheet__meta">{{ sheetMeta }}</p>
+        <div class="sheet__rule" aria-hidden="true"></div>
+        <ul class="sheet__body">
+          <li v-for="(line, index) in poem.content" :key="index">{{ line }}</li>
+        </ul>
+        <div class="sheet__actions">
+          <button class="sheet__btn" type="button" @click="sheetOpen = false">合上</button>
+        </div>
+      </div>
+    </div>
+  </transition>
 </template>
 
 <style scoped>
@@ -134,16 +210,40 @@ function start(): void {
   pointer-events: none;
 }
 
+/* 卡片背后的两团色光：毛玻璃要糊住点什么才成立 */
+.start__blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(44px);
+  opacity: 0.42;
+  pointer-events: none;
+}
+.start__blob--a {
+  top: 36%;
+  left: calc(50% - 11rem);
+  width: 13rem;
+  height: 13rem;
+  background: color-mix(in srgb, var(--primary) 34%, transparent);
+}
+.start__blob--b {
+  top: 50%;
+  left: calc(50% + 1rem);
+  width: 11rem;
+  height: 11rem;
+  background: color-mix(in srgb, var(--info) 30%, transparent);
+}
+
 .start--leaving {
   opacity: 0;
 }
 
 .start__inner {
   position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
   max-width: 46rem;
   padding: 0 2rem;
   text-align: center;
@@ -164,37 +264,105 @@ function start(): void {
 }
 
 .start__title {
-  margin: 0;
-  font-size: 2.75rem;
+  margin: 0.625rem 0 0;
+  font-size: 2.6rem;
   font-weight: 400; /* 字体只有 Regular，用字号和字距撑气势，不用合成加粗 */
   letter-spacing: 0.08em;
   color: var(--text-1);
 }
 
 .start__subtitle {
-  margin: 0;
+  margin: 0.5rem 0 0;
   font-size: 0.9375rem;
   color: var(--text-2);
 }
 
-.start__poem {
-  margin: 2.25rem 0 0.5rem;
-  padding: 0;
+/* ---------- 诗笺卡 ---------- */
+
+.poem {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: fit-content;
+  min-width: min(11rem, 100%);
+  max-width: min(38rem, 100%);
+  /* 给绝对定位的署名留位置：它不参与宽度计算，否则长标题会把卡片撑宽 */
+  margin: 2.25rem 0 0;
+  padding-bottom: 1.75rem;
 }
 
-.start__line {
+.poem__card {
+  position: relative;
+  width: 100%;
+  padding: 1.75rem 2.75rem;
+  background: color-mix(in srgb, var(--surface) 56%, transparent);
+  border: 1px solid color-mix(in srgb, var(--surface) 72%, transparent);
+  border-radius: 16px;
+  box-shadow:
+    0 14px 44px rgb(0 0 0 / 9%),
+    inset 0 1px 0 rgb(255 255 255 / 60%);
+  backdrop-filter: blur(22px) saturate(150%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+}
+
+.poem__lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1em;
   margin: 0;
-  font-size: 1.375rem;
-  line-height: 1.9;
-  letter-spacing: 0.12em;
+  padding: 0;
+  list-style: none;
+}
+
+.poem__lines li {
+  font-size: 1.125rem;
+  line-height: 2.15;
+  letter-spacing: 0.1em;
   color: var(--text-1);
 }
 
-.start__meta {
+.poem__more {
+  display: inline-flex;
+  gap: 0.25rem;
+  align-items: center;
   margin-top: 0.875rem;
-  font-size: 0.875rem;
+  padding: 0.3125rem 0.875rem;
+  font: inherit;
+  font-size: 0.8125rem;
   color: var(--text-2);
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  transition:
+    color var(--transition-fast),
+    background-color var(--transition-fast),
+    border-color var(--transition-fast);
 }
+
+.poem__more:hover {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 7%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+}
+
+/* 署名靠右，与卡片右边缘严格对齐；超长标题在卡片宽度内省略 */
+.poem__byline {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text-2);
+  text-align: right;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ---------- 按钮与倒计时 ---------- */
 
 .start__button {
   margin-top: 2rem;
@@ -230,12 +398,114 @@ function start(): void {
   outline-offset: 3px;
 }
 
-/* 倒计时：比按钮弱一档，别抢主体 */
 .start__countdown {
-  margin: 0.375rem 0 0;
+  margin: 0.5rem 0 0;
   font-size: 0.8125rem;
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em;
+}
+
+/* ---------- 全诗浮层 ---------- */
+
+.sheet-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+.sheet {
+  display: flex;
+  flex-direction: column;
+  width: min(40rem, 100%);
+  max-height: min(74vh, 42rem);
+  padding: 2.125rem 2.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 18px 50px rgb(0 0 0 / 18%);
+}
+
+.sheet__title {
+  margin: 0;
+  font-size: 1.1875rem;
+  font-weight: 500;
+  color: var(--text-1);
+  text-align: center;
+  letter-spacing: 0.1em;
+}
+
+.sheet__meta {
+  margin: 0.375rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--text-3);
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+
+.sheet__rule {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 1px;
+  margin: 1rem auto 1.125rem;
+  background: var(--border);
+}
+
+.sheet__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0 0.375rem;
+  overflow-y: auto;
+  text-align: center;
+  list-style: none;
+}
+
+.sheet__body li {
+  font-size: 1.0625rem;
+  line-height: 2.1;
+  color: var(--text-1);
+  letter-spacing: 0.08em;
+}
+
+.sheet__actions {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: center;
+  margin-top: 1.25rem;
+}
+
+.sheet__btn {
+  padding: 0.4375rem 1.125rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--text-2);
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  transition:
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.sheet__btn:hover {
+  color: var(--text-1);
+  border-color: var(--text-3);
+}
+
+.sheet-enter-active,
+.sheet-leave-active {
+  transition: opacity 0.22s ease;
+}
+
+.sheet-enter-from,
+.sheet-leave-to {
+  opacity: 0;
 }
 </style>

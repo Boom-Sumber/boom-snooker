@@ -34,10 +34,13 @@ import {
 /** 默认最小化到托盘：教学工具属于"随时查一眼"，关一次就退出太打断 */
 const DEFAULTS: AppPreferences = {
   closeAction: 'tray',
+  // 开机自启默认**关**（2026-11-05 确认）：不打招呼就让自己开机启动，用户会反感
   openAtLogin: false,
   trayHintShown: false,
   startPage: {
     enabled: true,
+    // 默认"自动进入"：显示倒计时，读秒结束自己进主页
+    manualEnter: false,
     autoEnterSeconds: START_PAGE_DEFAULT_SECONDS,
     poemCategories: []
   }
@@ -77,6 +80,7 @@ function normalizeStartPage(raw: unknown, fallback: StartPagePreferences): Start
 
   return {
     enabled: typeof value.enabled === 'boolean' ? value.enabled : fallback.enabled,
+    manualEnter: typeof value.manualEnter === 'boolean' ? value.manualEnter : fallback.manualEnter,
     autoEnterSeconds,
     poemCategories: categories
   }
@@ -90,8 +94,13 @@ export function getPreferences(): AppPreferences {
   return clone(current)
 }
 
-/** 启动时读一次（在 `app.whenReady()` 之后调用，`userData` 才确定） */
-export function initPreferences(): void {
+/**
+ * 启动时读一次（在 `app.whenReady()` 之后调用，`userData` 才确定）
+ *
+ * 返回 `true` 表示**首次启动**（还没有偏好文件）—— 调用方据此做一次性初始化，
+ * 比如清掉历史遗留的开机启动项（默认值已经是"关"了）。
+ */
+export function initPreferences(): boolean {
   try {
     const raw = readFileSync(preferencesFile(), 'utf8')
     const parsed = JSON.parse(raw) as Partial<AppPreferences>
@@ -104,9 +113,11 @@ export function initPreferences(): void {
       trayHintShown: typeof parsed.trayHintShown === 'boolean' ? parsed.trayHintShown : false,
       startPage: normalizeStartPage(parsed.startPage, DEFAULTS.startPage)
     }
+    return false
   } catch {
     // 没有这个文件（首次启动）/ 内容坏了：都用默认值，不阻塞启动
     current = clone(DEFAULTS)
+    return true
   }
 }
 

@@ -74,6 +74,23 @@ export function isHiddenLaunch(): boolean {
   return process.argv.includes(HIDDEN_ARG)
 }
 
+/**
+ * 首次启动时清一次系统启动项（2026-11-05）
+ *
+ * 默认值是「关」，但注册表里可能残留上一次安装 / 手工实验留下的条目 ——
+ * 不清的话设置页会显示一个用户从没同意过的"开"。
+ * 只在**没有偏好文件**的首次启动执行，不会覆盖用户自己的选择。
+ */
+export function resetAutoStartOnFirstRun(firstRun: boolean): void {
+  if (!firstRun || !isAutoStartSupported()) return
+
+  // 两种形态都清：带 --hidden 的（我们写的）和不带参数的（手工加的）
+  app.setLoginItemSettings({ openAtLogin: false, path: process.execPath, args: [HIDDEN_ARG] })
+  app.setLoginItemSettings({ openAtLogin: false, path: process.execPath, args: [] })
+  updatePreferences({ openAtLogin: false })
+  mainLog.info('autostart', '首次启动：已把开机自启置为关闭（清掉可能的残留项）')
+}
+
 export function registerAutoStartIpc(): void {
   ipcMain.handle('autostart:get', (): AutoStartState => getAutoStartState())
 

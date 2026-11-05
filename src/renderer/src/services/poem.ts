@@ -1,73 +1,162 @@
 /**
- * 启动页诗句
+ * 启动页诗句（2026-11-05 重写：在线 + 本地双模式）
  *
- * 接口：`https://v1.jinrishici.com/all.json` → `{ content, origin, author, ... }`
+ * 数据源：诗泉 `https://poetry.palemoky.com/api/poems/random`
+ *   - 免费、免注册、CORS 是 `*`，桌面端可以直接 fetch
+ *   - `content` 是数组：诗是「一联一项」，词是「一个句群一项」（不是逐句）
+ *   - 支持 `?type=五言绝句` 这类按体裁过滤
  *
  * 三条原则：
- *   1. **永不抛错**：拿不到就返回 null，调用方继续显示兜底句子。
- *      启动页是用户看到的第一个画面，绝不能因为第三方接口挂了而白屏。
- *   2. **超时 4 秒**：这个接口在国外，慢的时候能拖十几秒；启动页不值得等。
- *   3. **兜底句子写在本地**：不依赖任何网络，也不依赖接口格式不变。
+ *   1. **永不抛错**：拿不到就返回 null，调用方用本地缓存兜底，启动页不能白屏
+ *   2. **不重试超过 2 次**：这个接口有频率限制（实测连续请求会被 Cloudflare 403），
+ *      403/429 直接放弃，别把自己拉黑
+ *   3. **本地优先给内容、在线只做替换**：先渲染本地句子，接口回来再换
  *
- * 类别（2026-11-04）：在线接口不支持按类别取句，选了类别就用本地句库
- * （见 `poemLibrary.ts`）。不选类别才走在线推荐。
- *
- * ⚠️ CSP：`index.html` 的 `connect-src` 必须包含 `https://v1.jinrishici.com`，
- * 否则请求会被静默拦掉（控制台只有一条 CSP 报错，fetch 直接 reject）。
+ * ⚠️ CSP：`index.html` 的 `connect-src` 必须包含 `https://poetry.palemoky.com`
  */
-import { poemsOf } from './poemLibrary'
+import { categoryByCode, pickLocalPoem } from './poemLibrary'
 
+/** 一首诗（字段按诗泉接口扁平化后的结果） */
 export interface Poem {
-  content: string
+  title: string
+  /** 作者名 */
   author: string
-  origin: string
+  /** 朝代名，可能为空（数据里偶有缺失） */
+  dynasty: string
+  /** 体裁名，如「五言绝句」「宋词」 */
+  type: string
+  /** 整首；一项可能是一联（诗）或一个句群（词） */
+  content: string[]
 }
 
-const ENDPOINT = 'https://v1.jinrishici.com/all.json'
-const TIMEOUT_MS = 4000
+const ENDPOINT = 'https://poetry.palemoky.com/api/poems/random'
+const TIMEOUT_MS = 6000
+const MAX_ATTEMPTS = 2
+/** 上一次成功取到的诗：断网/限流时先拿它顶上 */
+const LAST_KEY = 'snooker:poem:last'
 
-/** 随机取一句本地句子（可按类别过滤；不传就是全库） */
-export function pickFallbackPoem(categories: readonly string[] = []): Poem {
-  const pool = poemsOf(categories)
-  return pool[Math.floor(Math.random() * pool.length)]
+function normalize(raw: unknown): Poem | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const data = raw as {
+    title?: unknown
+    content?: unknown
+    author?: { name?: unknown } | null
+    dynasty?: { name?: unknown } | null
+    type?: { name?: unknown } | null
+  }
+
+  const content = Array.isArray(data.content)
+    ? data.content.map((line) => String(line).trim()).filter((line) => line.length > 0)
+    : []
+  if (content.length === 0) return null
+
+  return {
+    title: typeof data.title === 'string' && data.title.trim() ? data.title.trim() : '无题',
+    author: typeof data.author?.name === 'string' ? data.author.name : '佚名',
+    dynasty: typeof data.dynasty?.name === 'string' ? data.dynasty.name : '',
+    type: typeof data.type?.name === 'string' ? data.type.name : '',
+    content
+  }
 }
 
-function isPoem(value: unknown): value is Poem {
-  if (typeof value !== 'object' || value === null) return false
-  const v = value as Partial<Poem>
-  return (
-    typeof v.content === 'string' &&
-    v.content.trim().length > 0 &&
-    typeof v.author === 'string' &&
-    typeof v.origin === 'string'
-  )
+/** 记住这次取到的诗（本地缓存，下次断网先用它） */
+export function rememberPoem(poem: Poem): void {
+  try {
+    window.localStorage.setItem(LAST_KEY, JSON.stringify({ poem, at: Date.now() }))
+  } catch {
+    // localStorage 不可用（隐私模式等）不影响主流程
+  }
 }
 
 /**
- * 拉一句诗；失败返回 null（调用方保留兜底句子）
+ * 取上一次缓存下来的诗
  *
- * `categories` 非空时直接用本地句库 —— 在线接口没有分类能力，
- * 硬拉一句不相关的回来反而是错的行为。
- *
- * 注意：不做重试。启动页多等 4 秒已经是上限，重试只会更慢。
+ * 选了类别时只在「体裁匹配所选类别」时返回 —— 否则会出现"选了宋词却显示唐诗"。
  */
-export async function fetchPoem(categories: readonly string[] = []): Promise<Poem | null> {
-  if (categories.length > 0) return pickFallbackPoem(categories)
-
+export function recallPoem(categories: readonly string[] = []): Poem | null {
   try {
-    const response = await fetch(ENDPOINT, {
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-      // 接口支持 CORS，桌面端直接请求即可，不需要代理
-      headers: { Accept: 'application/json' }
-    })
-    if (!response.ok) return null
+    const raw = window.localStorage.getItem(LAST_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { poem?: unknown }
+    const poem = normalize(parsed.poem)
+    if (!poem) return null
 
-    const data: unknown = await response.json()
-    if (!isPoem(data)) return null
-
-    return { content: data.content.trim(), author: data.author, origin: data.origin }
+    if (categories.length === 0) return poem
+    const labels = categories
+      .map((code) => categoryByCode(code)?.apiType)
+      .filter((label): label is string => Boolean(label))
+    return labels.includes(poem.type) ? poem : null
   } catch {
-    // 超时 / 断网 / CSP 拦截 / JSON 解析失败 —— 一律静默降级
     return null
   }
+}
+
+/** 从已选类别里随机挑一个（没选 = 不限，直接走随机） */
+function pickApiType(categories: readonly string[]): string | null {
+  const labels = categories
+    .map((code) => categoryByCode(code)?.apiType)
+    .filter((label): label is string => Boolean(label))
+  if (labels.length === 0) return null
+  return labels[Math.floor(Math.random() * labels.length)]
+}
+
+/**
+ * 拉一首诗；失败返回 null（调用方用 `recallPoem` / `pickLocalPoem` 兜底）
+ *
+ * 403 / 429 是频率限制，**不重试**：继续打只会让恢复更慢。
+ */
+export async function fetchPoem(categories: readonly string[] = []): Promise<Poem | null> {
+  const apiType = pickApiType(categories)
+  const url = apiType ? `${ENDPOINT}?type=${encodeURIComponent(apiType)}` : ENDPOINT
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+        headers: { Accept: 'application/json' },
+        cache: 'no-store'
+      })
+      // 限流 / 被 WAF 拦：直接放弃，别再打
+      if (response.status === 403 || response.status === 429) return null
+      if (!response.ok) continue
+
+      const json: unknown = await response.json()
+      const data = (json as { data?: unknown }).data
+      const poem = normalize(data)
+      if (poem) {
+        rememberPoem(poem)
+        return poem
+      }
+    } catch {
+      // 超时 / 断网 / JSON 解析失败 —— 换一次再试，仍失败就走兜底
+    }
+  }
+  return null
+}
+
+/** 本地兜底：按类别从内置缓存里挑一首 */
+export function pickCachedPoem(categories: readonly string[] = []): Poem {
+  return pickLocalPoem(categories)
+}
+
+/**
+ * 按标点切成句
+ *
+ * 中文诗词里「一句」按停顿算（逗号也断句）：水调歌头是 19 句，
+ * 只按句号/问号切会数成 9 —— 界面上写"全诗 N 句"要用前者才符合直觉。
+ */
+export function splitSentences(content: readonly string[]): string[] {
+  const text = content.join('')
+  const sentences: string[] = []
+  let buffer = ''
+
+  for (const char of text) {
+    buffer += char
+    if ('，。！？；：…、'.includes(char)) {
+      sentences.push(buffer)
+      buffer = ''
+    }
+  }
+  if (buffer.trim()) sentences.push(buffer)
+  return sentences.map((line) => line.trim()).filter(Boolean)
 }
