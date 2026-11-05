@@ -32,8 +32,11 @@ export interface Poem {
 const ENDPOINT = 'https://poetry.palemoky.com/api/poems/random'
 const TIMEOUT_MS = 6000
 const MAX_ATTEMPTS = 2
-/** 上一次成功取到的诗：断网/限流时先拿它顶上 */
+/** 上一次**看到**的诗：下次启动首屏直接用它（2026-11-05，A+G 方案） */
 const LAST_KEY = 'snooker:poem:last'
+
+/** 这首诗从哪来：接口 / 本地缓存 */
+export type PoemSource = 'api' | 'local'
 
 function normalize(raw: unknown): Poem | null {
   if (typeof raw !== 'object' || raw === null) return null
@@ -59,33 +62,43 @@ function normalize(raw: unknown): Poem | null {
   }
 }
 
-/** 记住这次取到的诗（本地缓存，下次断网先用它） */
-export function rememberPoem(poem: Poem): void {
+/**
+ * 记住一首诗（含来源）
+ *
+ * 这是一个「下次启动才生效」的缓存：启动页首屏直接显示它，后台再悄悄换成新的 ——
+ * 用户不会看到"先本地、后在线"的跳变（2026-11-05 A 方案）。
+ */
+export function rememberPoem(poem: Poem, source: PoemSource = 'api'): void {
   try {
-    window.localStorage.setItem(LAST_KEY, JSON.stringify({ poem, at: Date.now() }))
+    window.localStorage.setItem(LAST_KEY, JSON.stringify({ poem, source, at: Date.now() }))
   } catch {
     // localStorage 不可用（隐私模式等）不影响主流程
   }
 }
 
 /**
- * 取上一次缓存下来的诗
+ * 取上次看到的诗
  *
  * 选了类别时只在「体裁匹配所选类别」时返回 —— 否则会出现"选了宋词却显示唐诗"。
  */
-export function recallPoem(categories: readonly string[] = []): Poem | null {
+export function recallPoem(
+  categories: readonly string[] = []
+): { poem: Poem; source: PoemSource } | null {
   try {
     const raw = window.localStorage.getItem(LAST_KEY)
     if (!raw) return null
-    const parsed = JSON.parse(raw) as { poem?: unknown }
+    const parsed = JSON.parse(raw) as { poem?: unknown; source?: unknown }
     const poem = normalize(parsed.poem)
     if (!poem) return null
 
-    if (categories.length === 0) return poem
-    const labels = categories
-      .map((code) => categoryByCode(code)?.apiType)
-      .filter((label): label is string => Boolean(label))
-    return labels.includes(poem.type) ? poem : null
+    if (categories.length > 0) {
+      const labels = categories
+        .map((code) => categoryByCode(code)?.apiType)
+        .filter((label): label is string => Boolean(label))
+      if (!labels.includes(poem.type)) return null
+    }
+
+    return { poem, source: parsed.source === 'local' ? 'local' : 'api' }
   } catch {
     return null
   }
@@ -101,9 +114,10 @@ function pickApiType(categories: readonly string[]): string | null {
 }
 
 /**
- * 拉一首诗；失败返回 null（调用方用 `recallPoem` / `pickLocalPoem` 兜底）
+ * 拉一首诗；失败返回 null（调用方用 `recallPoem` / `pickCachedPoem` 兜底）
  *
  * 403 / 429 是频率限制，**不重试**：继续打只会让恢复更慢。
+ * 注意：这个函数**不写缓存**，由调用方决定要不要记住（启动页是"只缓存不显示"）。
  */
 export async function fetchPoem(categories: readonly string[] = []): Promise<Poem | null> {
   const apiType = pickApiType(categories)
@@ -123,10 +137,7 @@ export async function fetchPoem(categories: readonly string[] = []): Promise<Poe
       const json: unknown = await response.json()
       const data = (json as { data?: unknown }).data
       const poem = normalize(data)
-      if (poem) {
-        rememberPoem(poem)
-        return poem
-      }
+      if (poem) return poem
     } catch {
       // 超时 / 断网 / JSON 解析失败 —— 换一次再试，仍失败就走兜底
     }

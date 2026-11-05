@@ -233,17 +233,36 @@ const LOCAL_POEMS: Record<string, readonly Poem[]> = {
 /** 全部缓存（不限类别时用） */
 const ALL_CACHED: readonly Poem[] = Object.values(LOCAL_POEMS).flat()
 
+/** 本地轮换游标：顺序播，避免离线时每次启动都是同一首（2026-11-05 G 方案配套） */
+const CURSOR_KEY = 'snooker:poem:cursor'
+
 /**
  * 按类别挑一首本地缓存的诗
  *
- * 不传类别 = 从全部缓存里随机；传了不认识的 code 也退回全部，
- * 保证「永远有内容」。
+ * 用**轮换**而不是随机：离线时每类只有 3~4 首，随机很容易连续抽到同一首，
+ * 看起来像"没反应"。轮换保证一轮之内不重复。
+ *
+ * 不传类别 = 从全部缓存里轮换；传了不认识的 code 也退回全部，保证「永远有内容」。
  */
 export function pickLocalPoem(categories: readonly string[] = []): Poem {
   const pool = categories.length
     ? categories.flatMap((code) => LOCAL_POEMS[code] ?? [])
     : [...ALL_CACHED]
-
   const list = pool.length > 0 ? pool : ALL_CACHED
-  return list[Math.floor(Math.random() * list.length)]
+
+  let cursor = 0
+  try {
+    cursor = Number(window.localStorage.getItem(CURSOR_KEY) ?? '0') || 0
+  } catch {
+    // localStorage 不可用时退回第一首
+  }
+
+  const index = Math.abs(cursor) % list.length
+  try {
+    window.localStorage.setItem(CURSOR_KEY, String((index + 1) % list.length))
+  } catch {
+    // 写不进去也只是下次可能重复，不影响本次显示
+  }
+
+  return list[index]
 }

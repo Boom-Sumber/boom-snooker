@@ -20,8 +20,10 @@ import {
   fetchPoem,
   pickCachedPoem,
   recallPoem,
+  rememberPoem,
   splitSentences,
-  type Poem
+  type Poem,
+  type PoemSource
 } from '@renderer/services/poem'
 import { categoryByCode } from '@renderer/services/poemLibrary'
 import { START_PAGE_DEFAULT_SECONDS, type AppPreferences } from '@shared/types/system'
@@ -31,7 +33,17 @@ const router = useRouter()
 /** 首页最多显示几行（一项=一联/一句群） */
 const PREVIEW_LINES = 4
 
-const poem = ref<Poem>(pickCachedPoem())
+/**
+ * 首屏内容（2026-11-05 A+G 方案）
+ *
+ * **同步、零延迟、之后不再变**：优先用"上次看到的那首"（localStorage 同步读），
+ * 没有才从本地缓存轮换一首。在线请求只在后台更新缓存，**下次启动才生效** ——
+ * 这样用户永远不会看到"先本地、后在线"的跳变。
+ */
+const recalled = recallPoem()
+const poem = ref<Poem>(recalled ? recalled.poem : pickCachedPoem())
+/** 当前这首诗的来源（决定下次启动怎么取） */
+const source = ref<PoemSource>(recalled ? recalled.source : 'local')
 const leaving = ref(false)
 const sheetOpen = ref(false)
 /** 自动进入倒计时；0 = 不计时（手动模式或已停） */
@@ -94,29 +106,41 @@ onMounted(async () => {
   const selected = startPage?.poemCategories ?? []
   categories.value = selected
 
-  // 首选内容是按"不限"随机拿的；用户要是选了体裁，换成对应类别的
+  // 用户改过体裁：当前这首不属于所选类别，就换成本地对应类别的一首
+  // （只在挂载时可能发生一次，而且发生在首帧前后，用户基本看不到）
   if (selected.length > 0) {
     const allowed = selected
       .map((code) => categoryByCode(code)?.apiType)
       .filter((label): label is string => Boolean(label))
-    if (!allowed.includes(poem.value.type)) poem.value = pickCachedPoem(selected)
+    if (!allowed.includes(poem.value.type)) {
+      poem.value = pickCachedPoem(selected)
+      source.value = 'local'
+    }
   }
 
-  // 先看看有没有上次在线取到的（断网/限流时比内置缓存更"新"）
-  const last = recallPoem(selected)
-  if (last) poem.value = last
-
-  const remote = await fetchPoem(selected)
-  if (!disposed && remote) poem.value = remote
-
+  // E：读秒**不等网络**。内容已经在首帧渲染好了，倒计时立刻开始，
+  //    接口再慢（6 秒超时）也不影响"到点进主页"。
   startCountdown(startPage?.autoEnterSeconds ?? START_PAGE_DEFAULT_SECONDS)
+
+  // 记住当前这首：下次启动首屏直接用它（G）
+  rememberPoem(poem.value, source.value)
+
+  // 后台取新诗：**只写缓存、不改当前画面**（A）。拿到的那首下次启动才出现。
+  void warmUp()
 })
+
+/** 预热：拿到就存起来留给下次启动；拿不到（断网/限流）就算了，不影响当前画面 */
+async function warmUp(): Promise<void> {
+  const remote = await fetchPoem(categories.value)
+  if (disposed || !remote) return
+  rememberPoem(remote, 'api')
+}
 
 /**
  * 换一首（2026-11-05）
  *
- * 先试在线；拿不到就从本地缓存里换一首**不同的**（缓存每个体裁只有 3 首，
- * 直接随机很容易抽到同一首，看起来像"没反应"）。
+ * 这是**用户主动操作**，等一下可以接受：先试在线，拿不到就从本地缓存换一首
+ * **不同的**（轮换保证不重复），并记住它 —— 下次启动首屏就显示这首。
  */
 async function nextPoem(): Promise<void> {
   if (loading.value || leaving.value) return
@@ -125,6 +149,8 @@ async function nextPoem(): Promise<void> {
     const remote = await fetchPoem(categories.value)
     if (remote) {
       poem.value = remote
+      source.value = 'api'
+      rememberPoem(remote, 'api')
       return
     }
 
@@ -133,6 +159,8 @@ async function nextPoem(): Promise<void> {
       const candidate = pickCachedPoem(categories.value)
       if (`${candidate.title}|${candidate.author}` !== current) {
         poem.value = candidate
+        source.value = 'local'
+        rememberPoem(candidate, 'local')
         return
       }
     }
